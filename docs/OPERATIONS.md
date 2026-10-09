@@ -2,7 +2,7 @@
 
 ## What is implemented and what requires provisioning
 
-The app uses Supabase Auth, RLS-protected tables, PostgreSQL RPCs and exclusion constraints, photo storage, and a Resend notification worker. A hosted Supabase project is configured locally and reachable. Its staging/production designation still needs confirmation. Email sender provisioning and website deployment have not been verified.
+The app uses Supabase Auth, RLS-protected tables, PostgreSQL RPCs and exclusion constraints, photo storage, and a Resend notification worker. A hosted Supabase project is configured locally, reachable, and designated for staging by the owner. Email sender provisioning has not been verified. The website has not yet been deployed; Vercel is the selected host.
 
 ### Verification checkpoint — 9 October 2026
 
@@ -27,6 +27,16 @@ Online payments remain disabled in both the UI and database. `src/lib/payments.t
 7. Configure an edge/WAF rate limit for public enquiry endpoints. The database additionally limits submissions by email to five per hour. Do not rely on that per-email limit as the only spam defence.
 
 Use `npm ci`, `npm run dev`, `npm run typecheck`, `npm test`, and `npm run build`. The PostgreSQL tests run in PGlite without Docker; they mock Supabase's auth/storage schemas while executing the actual migrations and database functions. Browser tests (`npm run test:e2e`) use a local HTTP facade over those migrations and fixture auth sessions to verify customer/staff UI flows. They do not verify a real hosted Auth deployment or email delivery. They do not replace a multi-connection concurrency test against staging PostgreSQL.
+
+## First Vercel staging deployment
+
+The existing Vite/Nitro integration automatically detects Vercel. Do not add duplicate plugins or deploy the client assets alone; the app needs its server build. Reference: [Vercel TanStack Start deployment](https://vercel.com/kb/guide/deploy-a-tanstack-start-app-to-vercel).
+
+1. Authenticate locally with `npx vercel login`, then use `npx vercel link` to select the intended account and staging project. No Vercel credentials or project link were available at the verification checkpoint.
+2. In Vercel project environment settings, configure `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from the staging project's public values, and `VITE_DEMO_MODE=false`. Set these for Preview and for Production only if that Vercel project is dedicated to staging. Do not upload the entire `.env.local`; it contains database and service-role secrets that the website does not need.
+3. Use Node 24, `npm ci` for install, and `npm run build` for build. Keep Nitro's generated Vercel Build Output API layout. Local target verification: PowerShell `$env:NITRO_PRESET='vercel'; npm run build`. This target build passed on 9 October 2026 and generated a `nodejs24.x` server function plus static assets.
+4. Deploy a preview with `npx vercel`. Record the resulting URL. Configure Supabase Auth's site URL and exact login/recovery redirect URLs for the stable staging hostname before testing signup and recovery.
+5. Create and verify the intended administrator account, then promote its exact UUID as described above. Supply the verified sender/domain and configure Resend and the notification scheduler before the hosted lifecycle test.
 
 ## Business approvals before first live release
 
