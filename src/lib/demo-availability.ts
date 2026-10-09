@@ -1,3 +1,4 @@
+import { demoBookings } from "@/data/demo-fixtures";
 /**
  * DEMO availability generator — presentation only (Milestone 1).
  *
@@ -5,12 +6,7 @@
  * picker can be designed and tested. Real availability must be calculated
  * server-side against resource allocations in Milestone 3.
  */
-import {
-  bookingRules,
-  demoBookings,
-  operatingHours,
-  type Service,
-} from "@/data/demo";
+import { bookingRules, operatingHours, type Service } from "@/data/catalog";
 import { addMinutesToTime } from "@/lib/format";
 
 export interface DemoSlot {

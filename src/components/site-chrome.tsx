@@ -1,19 +1,38 @@
+import { useAuth } from "@/hooks/use-auth";
+import { db } from "@/lib/supabase";
+import { useCatalog } from "@/hooks/use-catalog";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { DemoBanner } from "@/components/demo-banner";
-import { VENUE_TIMEZONE_LABEL, brands } from "@/data/demo";
+import { VENUE_TIMEZONE_LABEL, brands } from "@/data/catalog";
 
 export function SiteHeader() {
+  const auth = useAuth();
+  const catalog = useCatalog();
+  const liveBrands = catalog.data?.brands.length ? catalog.data.brands : brands;
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur">
       <DemoBanner />
+      {catalog.error && (
+        <p role="alert" className="bg-muted px-4 py-2 text-sm">
+          Venue data is temporarily unavailable. Please try again.
+        </p>
+      )}
+      {catalog.data && !catalog.data.ready && (
+        <p className="bg-muted px-4 py-2 text-sm">
+          Reservations await venue setup and business approval.
+        </p>
+      )}
       <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3">
-        <Link to="/" className="text-base font-semibold tracking-tight">
-          Enigma <span className="text-muted-foreground">+</span> Studio D
+        <Link to="/" className="flex flex-col leading-tight tracking-tight">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+            The home of Enigma + Studio D
+          </span>
+          <span className="text-base font-extrabold">Creative Collective</span>
         </Link>
         <nav aria-label="Brands" className="ml-4 hidden gap-1 md:flex">
-          {brands.map((b) => (
+          {liveBrands.map((b) => (
             <Link
               key={b.slug}
               to="/$brand"
@@ -29,11 +48,35 @@ export function SiteHeader() {
           <Button asChild variant="ghost" size="sm">
             <Link to="/account/bookings">My bookings</Link>
           </Button>
-          <Button asChild size="sm">
-            <Link to="/login">Sign in</Link>
-          </Button>
+          {auth.user ? (
+            <Button
+              size="sm"
+              onClick={async () => {
+                await db().auth.signOut();
+                window.location.assign("/login");
+              }}
+            >
+              Sign out
+            </Button>
+          ) : (
+            <Button asChild size="sm">
+              <Link to="/login">Sign in</Link>
+            </Button>
+          )}
+          {auth.staff && (
+            <Button asChild size="sm" variant="outline">
+              <Link to="/admin">Staff</Link>
+            </Button>
+          )}
         </div>
       </div>
+      <nav aria-label="Mobile brands" className="flex gap-4 px-4 pb-3 md:hidden">
+        {liveBrands.map((b) => (
+          <Link key={b.slug} to="/$brand" params={{ brand: b.slug }} className="text-sm underline">
+            {b.name}
+          </Link>
+        ))}
+      </nav>
     </header>
   );
 }
@@ -43,7 +86,8 @@ export function SiteFooter() {
     <footer className="mt-16 border-t border-border bg-surface">
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <p className="font-semibold">Enigma + Studio D</p>
+          <p className="font-extrabold">Creative Collective</p>
+          <p className="mt-1 text-sm text-muted-foreground">Workspace and production, together.</p>
           <p className="mt-2 text-sm text-muted-foreground">
             Booking times are shown in {VENUE_TIMEZONE_LABEL}.
           </p>
@@ -88,7 +132,8 @@ export function SiteFooter() {
       </div>
       <div className="border-t border-border">
         <p className="mx-auto max-w-7xl px-4 py-4 text-xs text-muted-foreground">
-          Demo booking experience. Prices shown are published by Enigma or Studio D, in JMD, and may change. Enigma prices are tax exclusive. Confirm current rates and availability with the venue.
+          Reservations require staff approval. Pay in person after approval. Prices are in JMD;
+          applicable tax appears in your booking summary. Longer rentals are arranged by quote.
         </p>
       </div>
     </footer>
@@ -116,9 +161,7 @@ export function PageHeading({
 }) {
   return (
     <div className="max-w-2xl">
-      {eyebrow ? (
-        <p className="text-sm font-medium text-muted-foreground">{eyebrow}</p>
-      ) : null}
+      {eyebrow ? <p className="text-sm font-medium text-muted-foreground">{eyebrow}</p> : null}
       <h1 className="mt-1 text-3xl font-semibold sm:text-4xl">{title}</h1>
       {description ? <p className="mt-3 text-muted-foreground">{description}</p> : null}
     </div>

@@ -1,24 +1,23 @@
-# Pixel Perfect Clone
+﻿# Creative Collective
 
-Implement exactly the screenshot and nothing else
+Booking and operations platform for Enigma and Studio D, built with React, TanStack Start, Supabase and Resend.
 
-This project was built with [Lovable](https://lovable.dev).
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/bed65a44-7c49-4bf5-abd2-4c0d5c72a91f).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+The first release supports staff-approved pay-in-person reservations. Online payments remain disabled until a provider is selected and integrated.
 
 ## Development
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
-
 ```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
+npm ci
 npm run dev
+npm run typecheck
+npm run lint
+npm test
+npm run test:e2e
+npm run build
 ```
+
+Copy `.env.example` to `.env.local` and configure Supabase. Apply the versioned migrations before enabling the live catalog. Production booking starts disabled until business configuration is approved.
+
+See [setup, launch dependencies and staff operations](docs/OPERATIONS.md).
+
+The repository remains connected to [Lovable](https://lovable.dev/projects/bed65a44-7c49-4bf5-abd2-4c0d5c72a91f). Preserve published Git history and keep changes in a working state.

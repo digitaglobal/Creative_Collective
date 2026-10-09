@@ -1,4 +1,4 @@
-import { CURRENCY } from "@/data/demo";
+import { CURRENCY } from "@/data/catalog";
 
 /** Money is stored in integer minor units. Never use floats for totals. */
 export function formatMoney(minor: number, currency = CURRENCY): string {

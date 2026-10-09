@@ -1,6 +1,7 @@
+import { useCatalog } from "@/hooks/use-catalog";
 import { createFileRoute } from "@tanstack/react-router";
 import { PageHeading, SiteLayout } from "@/components/site-chrome";
-import { bookingRules, operatingHours, VENUE_TIMEZONE_LABEL } from "@/data/demo";
+import { VENUE_TIMEZONE_LABEL } from "@/data/catalog";
 
 export const Route = createFileRoute("/help")({
   head: () => ({
@@ -8,24 +9,57 @@ export const Route = createFileRoute("/help")({
       { title: "Help — Enigma + Studio D" },
       { name: "description", content: "How booking works, opening hours and what to expect." },
       { property: "og:title", content: "Help — Enigma + Studio D" },
-      { property: "og:description", content: "How booking works, opening hours and what to expect." },
+      {
+        property: "og:description",
+        content: "How booking works, opening hours and what to expect.",
+      },
     ],
   }),
   component: Help,
 });
 
-const faqs = [
-  { q: "How far ahead can I book?", a: `At least ${bookingRules.advanceNoticeHours} hours ahead and up to ${bookingRules.horizonDays} days out.` },
-  { q: "What time zone are times in?", a: `All times are in ${VENUE_TIMEZONE_LABEL}.` },
-  { q: "When are you open?", a: `Weekdays ${operatingHours.weekdayOpen}–${operatingHours.weekdayClose}, Saturday ${operatingHours.saturdayOpen}–${operatingHours.saturdayClose}, closed Sunday. (Proposed hours.)` },
-  { q: "Can I pay in person?", a: "You can request it. Staff must approve it, and unapproved requests expire." },
-];
-
 function Help() {
+  const catalog = useCatalog();
+  const rules = catalog.data?.rules;
+  const hours = catalog.data?.hours;
+  const faqs = [
+    {
+      q: "How far ahead can I book?",
+      a: rules
+        ? `At least ${rules.advanceNoticeHours} hours ahead and up to ${rules.horizonDays} days out.`
+        : "Booking rules await venue setup.",
+    },
+    { q: "What time zone are times in?", a: `All times are in ${VENUE_TIMEZONE_LABEL}.` },
+    {
+      q: "When are you open?",
+      a: hours
+        ? `Weekdays ${hours.weekdayOpen.slice(0, 5)}–${hours.weekdayClose.slice(0, 5)}, Saturday ${hours.saturdayOpen.slice(0, 5)}–${hours.saturdayClose.slice(0, 5)}.${hours.sundayClosed ? " Closed Sunday." : " Sunday follows weekday hours."}`
+        : "Opening hours await venue setup.",
+    },
+    {
+      q: "Can I pay in person?",
+      a: "Yes. Request a reservation and wait for staff approval. Unapproved requests expire at the earlier of 24 hours after submission or session start.",
+    },
+    {
+      q: "Can I cancel or reschedule?",
+      a: "Request a change from My bookings. Staff approval is required. A cancellation does not automatically refund a recorded payment.",
+    },
+    {
+      q: "How do longer rentals work?",
+      a: "Send an enquiry for daily, weekly or monthly rentals. Staff provide a quote. Quotes do not reserve space; accepting one requests a reservation.",
+    },
+  ];
   return (
     <SiteLayout>
       <div className="mx-auto max-w-3xl px-4 py-12">
-        <PageHeading title="Help" description="Answers here are proposals awaiting approval by the business." />
+        <PageHeading
+          title="Help"
+          description={
+            catalog.data?.ready
+              ? "How reservations work."
+              : "Live reservations await venue setup and approval."
+          }
+        />
         <dl className="mt-8 space-y-4">
           {faqs.map((f) => (
             <div key={f.q} className="surface-panel p-5">
@@ -34,6 +68,27 @@ function Help() {
             </div>
           ))}
         </dl>
+        {catalog.data?.brands
+          .filter((b) => b.contactEmail || b.contactPhone)
+          .map((b) => (
+            <section key={b.slug} className="surface-panel mt-4 p-5">
+              <h2 className="font-semibold">Contact {b.name}</h2>
+              {b.contactEmail && (
+                <p>
+                  <a className="underline" href={`mailto:${b.contactEmail}`}>
+                    {b.contactEmail}
+                  </a>
+                </p>
+              )}
+              {b.contactPhone && (
+                <p>
+                  <a className="underline" href={`tel:${b.contactPhone}`}>
+                    {b.contactPhone}
+                  </a>
+                </p>
+              )}
+            </section>
+          ))}
       </div>
     </SiteLayout>
   );

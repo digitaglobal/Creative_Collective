@@ -4,14 +4,19 @@ import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { DraftBadge } from "@/components/status-badges";
 import { ImagePlaceholder } from "@/components/demo-banner";
-import { CURRENCY, VENUE_TIMEZONE_LABEL, type ContentType, type Service } from "@/data/demo";
+import { CURRENCY, VENUE_TIMEZONE_LABEL, type ContentType, type Service } from "@/data/catalog";
 import { formatDuration, formatMoney } from "@/lib/format";
 
 export function ServiceCard({ service }: { service: Service }) {
-  const bookable = service.status === "published" && service.bookableHourly && service.hourlyRateMinor !== null;
+  const bookable =
+    service.status === "published" && service.bookableHourly && service.hourlyRateMinor !== null;
   return (
     <article className="surface-panel flex flex-col overflow-hidden">
-      <ImagePlaceholder alt={service.imageAlt} className="h-40 rounded-none" />
+      {service.imageUrl ? (
+        <img src={service.imageUrl} alt={service.imageAlt} className="h-40 w-full object-cover" />
+      ) : (
+        <ImagePlaceholder alt={service.imageAlt} className="h-40 rounded-none" />
+      )}
       <div className="flex flex-1 flex-col gap-3 p-5">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <h3 className="text-lg font-semibold">{service.name}</h3>
@@ -22,22 +27,26 @@ export function ServiceCard({ service }: { service: Service }) {
           <div>
             <dt className="text-muted-foreground">From</dt>
             <dd className="font-medium">
-              {!service.publishedPrices.length ? <span className="text-muted-foreground">Rate not set</span> :
-                service.publishedPrices.map((price) => `${price.label}: ${formatMoney(price.amountMinor)}`).join(" · ")}
+              {!service.publishedPrices.length ? (
+                <span className="text-muted-foreground">Rate not set</span>
+              ) : (
+                service.publishedPrices
+                  .map((price) => `${price.label}: ${formatMoney(price.amountMinor)}`)
+                  .join(" · ")
+              )}
             </dd>
           </div>
           <div>
             <dt className="text-muted-foreground">Up to</dt>
             <dd className="font-medium">
-              {service.bookableHourly ? `${service.maxAttendees} ${service.maxAttendees === 1 ? "person" : "people"}` : "Inquiry"}
+              {service.bookableHourly
+                ? `${service.maxAttendees} ${service.maxAttendees === 1 ? "person" : "people"}`
+                : "Inquiry"}
             </dd>
           </div>
         </dl>
         <Button asChild variant={bookable ? "default" : "secondary"} className="mt-2 w-full">
-          <Link
-            to="/$brand/services/$slug"
-            params={{ brand: service.brand, slug: service.slug }}
-          >
+          <Link to="/$brand/services/$slug" params={{ brand: service.brand, slug: service.slug }}>
             {bookable ? "View details" : "Pricing and inquiries"}
           </Link>
         </Button>
@@ -59,7 +68,11 @@ export function PublishedPriceList({ service }: { service: Service }) {
           </div>
         ))}
       </dl>
-      {!service.bookableHourly ? <p className="mt-3 text-sm text-muted-foreground">Contact the venue to arrange this service.</p> : null}
+      {!service.bookableHourly ? (
+        <p className="mt-3 text-sm text-muted-foreground">
+          Contact the venue to arrange this service.
+        </p>
+      ) : null}
     </section>
   );
 }

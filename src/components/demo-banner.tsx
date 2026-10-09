@@ -1,5 +1,5 @@
 import { TriangleAlert } from "lucide-react";
-import { DEMO_MODE } from "@/data/demo";
+import { DEMO_MODE } from "@/data/catalog";
 
 export function DemoBanner() {
   if (!DEMO_MODE) return null;
@@ -9,7 +9,7 @@ export function DemoBanner() {
         <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0 sm:mt-0" />
         <p>
           <span className="font-semibold">Demo data</span> — not live availability, pricing or
-          policy. Bookings and payments are not yet functional.
+          policy. This preview cannot create live reservations.
         </p>
       </div>
     </div>
@@ -23,8 +23,11 @@ export function ImagePlaceholder({ alt, className = "" }: { alt: string; classNa
       aria-label={`Placeholder for: ${alt}. Venue photography pending.`}
       className={`relative flex items-end overflow-hidden rounded-xl bg-accent ${className}`}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,var(--color-card),transparent_60%)] opacity-70" />
-      <p className="relative m-3 rounded-md bg-card/80 px-2 py-1 text-xs text-muted-foreground">
+      <div
+        aria-hidden="true"
+        className="absolute -right-10 -top-16 size-56 rounded-full border-[32px] border-background/15"
+      />
+      <p className="relative m-3 rounded-sm bg-background/85 px-2 py-1 text-xs text-muted-foreground">
         Venue photo pending
       </p>
     </div>
