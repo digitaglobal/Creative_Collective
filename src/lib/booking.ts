@@ -54,6 +54,21 @@ export function venueTime(instant: string) {
     minute: "2-digit",
   }).format(new Date(instant));
 }
+export function bookingCalendarDescription(b: Booking) {
+  return `Booking reference: ${b.reference}\nStatus: ${b.booking_state.replaceAll("_", " ")}\nAll booking times are in Jamaica time.\n${b.arrival_instructions || "Arrival instructions and venue address are awaiting confirmation. Check My bookings before travelling."}\nIf your booking changes, update or replace your calendar event.`;
+}
+export function calendarLink(b: Booking, provider: "google" | "outlook") {
+  const title = `${b.service_name} � ${b.reference}`;
+  if (provider === "google") {
+    const stamp = (s: string) =>
+      new Date(s)
+        .toISOString()
+        .replace(/[-:]/g, "")
+        .replace(/\.\d{3}/, "");
+    return `https://calendar.google.com/calendar/render?${new URLSearchParams({ action: "TEMPLATE", text: title, dates: `${stamp(b.starts_at)}/${stamp(b.ends_at)}`, details: bookingCalendarDescription(b), ctz: "America/Jamaica" })}`;
+  }
+  return `https://outlook.live.com/calendar/0/deeplink/compose?${new URLSearchParams({ path: "/calendar/action/compose", rru: "addevent", subject: title, startdt: new Date(b.starts_at).toISOString(), enddt: new Date(b.ends_at).toISOString(), body: bookingCalendarDescription(b) })}`;
+}
 export function calendarText(b: Booking) {
   const stamp = (s: string) =>
     new Date(s)
@@ -71,8 +86,8 @@ export function calendarText(b: Booking) {
     `DTSTAMP:${stamp(new Date().toISOString())}`,
     `DTSTART:${stamp(b.starts_at)}`,
     `DTEND:${stamp(b.ends_at)}`,
-    `SUMMARY:${escape(b.service_name)}`,
-    `DESCRIPTION:${escape(`Booking ${b.reference}. ${b.arrival_instructions}`)}`,
+    `SUMMARY:${escape(`${b.service_name} � ${b.reference}`)}`,
+    `DESCRIPTION:${escape(bookingCalendarDescription(b))}`,
     "END:VEVENT",
     "END:VCALENDAR",
     "",

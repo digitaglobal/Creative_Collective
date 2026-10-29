@@ -10,7 +10,8 @@ import { AccessGate } from "@/components/access-gate";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { db, rpc } from "@/lib/supabase";
-import { downloadCalendar, venueTime, type Booking, type Payment } from "@/lib/booking";
+import { BookingArrival } from "@/components/booking-arrival";
+import { venueTime, type Booking, type Payment } from "@/lib/booking";
 import { formatMoney } from "@/lib/format";
 export const Route = createFileRoute("/account/bookings")({
   head: () => ({ meta: [{ name: "robots", content: "noindex" }] }),
@@ -334,12 +335,7 @@ function BookingCard({ booking: b }: { booking: Booking }) {
         Total {formatMoney(b.total_minor)} · Paid {formatMoney(b.paid_minor)} · Balance{" "}
         {formatMoney(b.total_minor - b.paid_minor)}
       </p>
-      {b.arrival_instructions && (
-        <section className="rounded-xl border p-4">
-          <h3 className="font-semibold">Arrival details</h3>
-          <p className="mt-2 whitespace-pre-wrap break-words text-sm">{b.arrival_instructions}</p>
-        </section>
-      )}
+      <BookingArrival booking={b} />
       {service && (
         <a
           className="inline-block font-medium underline underline-offset-4"
@@ -349,9 +345,6 @@ function BookingCard({ booking: b }: { booking: Booking }) {
         </a>
       )}
       <div className="flex flex-wrap gap-2">
-        <Button variant="outline" onClick={() => downloadCalendar(b)}>
-          Add to calendar
-        </Button>
         <Button variant="outline" onClick={() => window.print()}>
           Print summary
         </Button>
