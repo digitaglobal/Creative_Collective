@@ -359,6 +359,9 @@ function BookingCard({ booking: b }: { booking: Booking }) {
       <details>
         <summary>Payment history</summary>
         {payments.error && <p role="alert">{payments.error.message}</p>}
+        {payments.isSuccess && !payments.data.length && (
+          <p className="mt-2 text-sm text-muted-foreground">No payments recorded yet.</p>
+        )}
         {payments.data?.map((p) => (
           <p key={p.id}>
             {p.kind}: {formatMoney(p.amount_minor)} · {p.method} · {p.reference} · {p.created_at}
@@ -370,6 +373,12 @@ function BookingCard({ booking: b }: { booking: Booking }) {
           <p>
             Change request: {c.kind} · {c.state}
           </p>
+          {c.state === "pending" && (
+            <p className="text-sm">
+              Staff are reviewing this request. Your current reservation stays active until they
+              approve the change.
+            </p>
+          )}
           {c.proposed_start && (
             <p>
               {staffDateTime(c.proposed_start)} to {staffDateTime(c.proposed_end)} (Jamaica time)
