@@ -12,6 +12,7 @@ import { db, rpc } from "@/lib/supabase";
 import { venueTime, type Booking } from "@/lib/booking";
 import { formatMoney } from "@/lib/format";
 import { AdminConfiguration } from "@/components/admin-configuration";
+import { BookingFunnel } from "@/components/booking-funnel";
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ name: "robots", content: "noindex" }] }),
   component: Admin,
@@ -21,6 +22,7 @@ function Admin() {
     <SiteLayout>
       <div className="mx-auto max-w-7xl px-4 py-12">
         <AccessGate staff>
+          <BookingFunnel />
           <Operations />
         </AccessGate>
       </div>

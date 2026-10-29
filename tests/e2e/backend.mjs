@@ -149,7 +149,13 @@ createServer((request, response) => {
             ),
           );
           if (
-            ["public_catalog", "available_slots", "submit_enquiry", "preview_change"].includes(name)
+            [
+              "public_catalog",
+              "available_slots",
+              "submit_enquiry",
+              "preview_change",
+              "booking_funnel_report",
+            ].includes(name)
           )
             send(result.rows[0]?.[name]);
           else if (

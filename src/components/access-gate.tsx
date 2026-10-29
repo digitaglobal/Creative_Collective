@@ -1,10 +1,12 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useLocation } from "@tanstack/react-router";
+import { bookingReturnTo } from "@/lib/booking-journey";
 import type { ReactNode } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { backendConfigured } from "@/lib/supabase";
 
 export function AccessGate({ children, staff = false }: { children: ReactNode; staff?: boolean }) {
   const auth = useAuth();
+  const location = useLocation();
   if (!backendConfigured)
     return <p className="surface-panel p-6">Accounts and booking are awaiting backend setup.</p>;
   if (auth.loading) return <p role="status">Loading your account…</p>;
@@ -12,10 +14,14 @@ export function AccessGate({ children, staff = false }: { children: ReactNode; s
   if (!auth.user)
     return (
       <p className="surface-panel p-6">
-        <Link to="/login" className="underline">
+        <Link
+          to="/login"
+          search={{ returnTo: bookingReturnTo(location.href) }}
+          className="underline"
+        >
           Sign in
         </Link>{" "}
-        to continue.
+        to continue. Your booking selections will be kept.
       </p>
     );
   if (staff && !auth.staff) return <p role="alert">Staff access is required.</p>;

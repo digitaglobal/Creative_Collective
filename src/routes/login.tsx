@@ -4,12 +4,21 @@ import { SiteLayout } from "@/components/site-chrome";
 import { Button } from "@/components/ui/button";
 import { db, supabase, backendConfigured } from "@/lib/supabase";
 import { useAuth } from "@/hooks/use-auth";
+import { bookingReturnTo } from "@/lib/booking-journey";
 
 export const Route = createFileRoute("/login")({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { returnTo?: string | undefined; recovery?: string | undefined } => ({
+    returnTo: search["returnTo"] ? bookingReturnTo(search["returnTo"]) : undefined,
+    recovery: search["recovery"] === "1" ? "1" : undefined,
+  }),
   head: () => ({ meta: [{ name: "robots", content: "noindex" }] }),
   component: Login,
 });
 function Login() {
+  const search = Route.useSearch();
+  const destination = bookingReturnTo(search.returnTo);
   const [mode, setMode] = useState<"in" | "up" | "reset" | "update">("in");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -36,6 +45,12 @@ function Login() {
             }[mode]
           }
         </h1>
+        {search.returnTo && (
+          <p className="mt-3 text-sm">
+            Sign in or create an account to return to your saved booking selections. Your time is
+            not held until you submit a request.
+          </p>
+        )}
         {!backendConfigured && (
           <p className="mt-4" role="status">
             Accounts are awaiting backend setup.
@@ -47,6 +62,11 @@ function Login() {
             <Link to="/account/bookings" className="underline">
               My bookings
             </Link>
+            {search.returnTo && (
+              <a className="ml-3 underline" href={destination}>
+                Return to booking
+              </a>
+            )}
           </p>
         )}
         <form
@@ -66,7 +86,10 @@ function Login() {
                   password,
                   options: {
                     data: { full_name: f.get("name"), phone: f.get("phone") },
-                    emailRedirectTo: window.location.origin + "/login",
+                    emailRedirectTo:
+                      window.location.origin +
+                      "/login?" +
+                      new URLSearchParams({ returnTo: destination }),
                   },
                 });
                 if (error) throw error;
@@ -75,11 +98,14 @@ function Login() {
               if (mode === "in") {
                 const { error } = await client.auth.signInWithPassword({ email, password });
                 if (error) throw error;
-                window.location.assign("/account/bookings");
+                window.location.assign(destination);
               }
               if (mode === "reset") {
                 const { error } = await client.auth.resetPasswordForEmail(email, {
-                  redirectTo: window.location.origin + "/login?recovery=1",
+                  redirectTo:
+                    window.location.origin +
+                    "/login?" +
+                    new URLSearchParams({ recovery: "1", returnTo: destination }),
                 });
                 if (error) throw error;
                 setMessage("If an account exists, a reset link has been sent.");

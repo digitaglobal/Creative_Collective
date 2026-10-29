@@ -119,7 +119,7 @@ export function PriceBreakdown({
   note,
 }: {
   lines: QuoteLine[];
-  totalMinor: number;
+  totalMinor: number | null;
   note?: string;
 }) {
   return (
@@ -145,7 +145,9 @@ export function PriceBreakdown({
       </dl>
       <div className="flex items-center justify-between border-t border-border pt-3">
         <p className="font-semibold">Total ({CURRENCY})</p>
-        <p className="text-lg font-semibold tabular-nums">{formatMoney(totalMinor)}</p>
+        <p className="text-lg font-semibold tabular-nums">
+          {totalMinor === null ? "Awaiting tax confirmation" : formatMoney(totalMinor)}
+        </p>
       </div>
       <p className="flex gap-2 text-xs text-muted-foreground">
         <Info aria-hidden className="mt-0.5 size-3.5 shrink-0" />
@@ -156,7 +158,7 @@ export function PriceBreakdown({
   );
 }
 
-const steps = ["Choose a time", "Sign in", "Review and reserve", "Confirmation"];
+const steps = ["Choose a time", "Sign in", "Review and request", "Request status"];
 
 export function BookingStepper({ current }: { current: number }) {
   return (

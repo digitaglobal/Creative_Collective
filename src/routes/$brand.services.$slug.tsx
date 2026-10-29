@@ -1,5 +1,7 @@
 import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { z } from "zod";
+import { trackBookingStep } from "@/lib/booking-analytics";
 import { SiteLayout } from "@/components/site-chrome";
 import { VenueImage } from "@/components/venue-image";
 import { servicePhoto } from "@/data/venue-media";
@@ -28,6 +30,21 @@ import { EnquiryForm } from "@/components/enquiry-form";
 import { formatDateShort, formatDuration, formatMoney } from "@/lib/format";
 
 export const Route = createFileRoute("/$brand/services/$slug")({
+  validateSearch: z.object({
+    date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional()
+      .catch(undefined),
+    duration: z.coerce.number().int().positive().optional().catch(undefined),
+    attendees: z.coerce.number().int().positive().optional().catch(undefined),
+    start: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/)
+      .optional()
+      .catch(undefined),
+    extras: z.string().optional(),
+  }),
   loader: async ({ params }) => {
     const catalog = backendConfigured ? await rpc<Catalog>("public_catalog") : null;
     const service = catalog
@@ -67,6 +84,7 @@ function nextDays(n: number): string[] {
 }
 
 function ServicePage() {
+  const selection = Route.useSearch();
   const initial = Route.useLoaderData();
   const catalog = useCatalog();
   const service =
@@ -93,11 +111,26 @@ function ServicePage() {
     },
     (_, i) => service.minDurationMinutes + i * service.stepMinutes,
   );
-  const [date, setDate] = useState(venueDate());
-  const [duration, setDuration] = useState(durations[0] ?? service.minDurationMinutes);
-  const [attendees, setAttendees] = useState(1);
-  const [start, setStart] = useState<string | null>(null);
-  const [extras, setExtras] = useState<string[]>([]);
+  const [date, setDate] = useState(
+    selection.date && days.includes(selection.date) ? selection.date : venueDate(),
+  );
+  const [duration, setDuration] = useState(
+    selection.duration && durations.includes(selection.duration)
+      ? selection.duration
+      : (durations[0] ?? service.minDurationMinutes),
+  );
+  const [attendees, setAttendees] = useState(
+    Math.min(service.maxAttendees, selection.attendees ?? 1),
+  );
+  const [start, setStart] = useState<string | null>(selection.start ?? null);
+  const [extras, setExtras] = useState<string[]>(
+    (selection.extras ?? "")
+      .split(",")
+      .filter((id) => service.addons.some((a) => a.id === id && a.status === "published")),
+  );
+  useEffect(() => {
+    trackBookingStep("space_viewed", service.id);
+  }, [service.id]);
   const availability = useQuery({
     queryKey: ["availability", service.id, date, duration, extras],
     enabled: bookable,
@@ -112,6 +145,29 @@ function ServicePage() {
     refetchInterval: 30_000,
   });
   const slots = availability.data ?? [];
+  const alternatives = useQuery({
+    queryKey: ["alternative-times", service.id, date, duration, extras],
+    enabled: bookable && availability.isSuccess && !slots.some((slot) => slot.available),
+    queryFn: async () => {
+      const candidates = days.filter((day) => day > date).slice(0, 7);
+      const results = await Promise.all(
+        candidates.map(async (day) => {
+          const times = await rpc<Slot[]>("available_slots", {
+            p_service: service.id,
+            p_date: day,
+            p_duration: duration,
+            p_extra_ids: extras,
+          });
+          return times
+            .filter((slot) => slot.available)
+            .slice(0, 2)
+            .map((slot) => ({ date: day, start: slot.start }));
+        }),
+      );
+      return results.flat().slice(0, 4);
+    },
+    staleTime: 0,
+  });
   const rate = service.hourlyRateMinor ?? 0;
   const base =
     Math.round((rate * duration) / 60) +
@@ -128,7 +184,7 @@ function ServicePage() {
       : Math.round((base * catalog.data.taxBasisPoints) / 10000);
   return (
     <SiteLayout>
-      <div className="mx-auto max-w-7xl px-4 py-10">
+      <div className="mx-auto max-w-7xl px-4 pb-32 pt-10 lg:pb-10">
         <p className="text-sm text-muted-foreground">{brand.name}</p>
         <div className="mt-1 flex flex-wrap items-center gap-3">
           <h1 className="text-3xl font-semibold sm:text-4xl">{service.name}</h1>
@@ -250,6 +306,7 @@ function ServicePage() {
                   <label className="text-sm font-medium">
                     Duration
                     <select
+                      aria-label="Duration"
                       className="mt-1 w-full rounded-md border border-input bg-background px-2 py-2 text-sm"
                       value={duration}
                       onChange={(e) => {
@@ -267,6 +324,7 @@ function ServicePage() {
                   <label className="text-sm font-medium">
                     Attendees
                     <input
+                      aria-label="Booking attendees"
                       type="number"
                       min={1}
                       max={service.maxAttendees}
@@ -288,7 +346,7 @@ function ServicePage() {
                     </span>
                   </legend>
                   {availability.isLoading ? (
-                    <p role="status">Checking availability?</p>
+                    <p role="status">Checking availability…</p>
                   ) : availability.error ? (
                     <p role="alert">{availability.error.message}</p>
                   ) : slots.length === 0 ? (
@@ -302,7 +360,10 @@ function ServicePage() {
                           disabled={!s.available}
                           title={s.reason}
                           aria-pressed={start === s.start}
-                          onClick={() => setStart(s.start)}
+                          onClick={() => {
+                            setStart(s.start);
+                            trackBookingStep("time_selected", service.id);
+                          }}
                           className={`rounded-md border px-2 py-1.5 text-xs tabular-nums ${start === s.start ? "border-primary bg-primary text-primary-foreground" : "border-border"} disabled:line-through disabled:opacity-40`}
                         >
                           {s.start}
@@ -311,15 +372,58 @@ function ServicePage() {
                     </div>
                   )}
                 </fieldset>
+                {availability.isSuccess && !slots.some((slot) => slot.available) && (
+                  <section aria-label="Alternative times" className="space-y-2 text-sm">
+                    <p>No available times for this duration and extras on this date.</p>
+                    {alternatives.isLoading ? (
+                      <p role="status">Finding nearby dates…</p>
+                    ) : alternatives.error ? (
+                      <p role="alert">
+                        Could not check nearby dates. Try another date or send an enquiry below.
+                      </p>
+                    ) : alternatives.data?.length ? (
+                      <>
+                        <p className="font-medium">Try one of these available times:</p>
+                        {alternatives.data.map((option) => (
+                          <button
+                            type="button"
+                            key={option.date + option.start}
+                            className="mr-2 rounded border px-3 py-2"
+                            onClick={() => {
+                              setDate(option.date);
+                              setStart(option.start);
+                              trackBookingStep("time_selected", service.id);
+                            }}
+                          >
+                            {formatDateShort(option.date)} · {option.start}
+                          </button>
+                        ))}
+                      </>
+                    ) : (
+                      <p>
+                        Nothing available in the next seven days within the booking window. Try
+                        another date, adjust the duration, or send an enquiry below.
+                      </p>
+                    )}
+                  </section>
+                )}
                 <PriceBreakdown
                   lines={[
                     {
                       label: `${formatDuration(duration)} × ${formatMoney(rate)}/hr`,
-                      amountMinor: base,
+                      amountMinor: Math.round((rate * duration) / 60),
                     },
+                    ...service.addons
+                      .filter((a) => extras.includes(a.id))
+                      .map((a) => ({
+                        label: a.name,
+                        amountMinor: Math.round(
+                          a.amountMinor * (a.basis === "per-hour" ? duration / 60 : 1),
+                        ),
+                      })),
                     { label: "Tax", amountMinor: tax },
                   ]}
-                  totalMinor={base + (tax ?? 0)}
+                  totalMinor={tax === null ? null : base + tax}
                   note={
                     tax === null
                       ? "Tax awaits approved configuration."
@@ -347,26 +451,38 @@ function ServicePage() {
                       </label>
                     ))}
                 </div>
-                <Button
-                  className="w-full"
-                  disabled={!start || !slots.some((s) => s.start === start && s.available)}
-                  onClick={() =>
-                    start &&
-                    navigate({
-                      to: "/checkout",
-                      search: {
-                        service: service.id,
-                        date,
-                        start,
-                        duration,
-                        attendees,
-                        extras: extras.join(","),
-                      },
-                    })
-                  }
-                >
-                  Continue
-                </Button>
+                <p className="text-sm">
+                  Request this time for staff approval. Pay in person after approval; no online
+                  payment is collected. Selecting a time does not hold it.
+                </p>
+                <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background p-4 shadow-lg lg:static lg:p-0 lg:pt-3 lg:shadow-none">
+                  <p className="mb-2 text-sm font-medium">
+                    {tax === null
+                      ? "Total awaits tax confirmation"
+                      : `Total: ${formatMoney(base + tax)}`}{" "}
+                    · {formatDuration(duration)}
+                  </p>
+                  <Button
+                    className="w-full"
+                    disabled={!start || !slots.some((s) => s.start === start && s.available)}
+                    onClick={() =>
+                      start &&
+                      navigate({
+                        to: "/checkout",
+                        search: {
+                          service: service.id,
+                          date,
+                          start,
+                          duration,
+                          attendees,
+                          extras: extras.join(","),
+                        },
+                      })
+                    }
+                  >
+                    Continue
+                  </Button>
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Book at least{" "}
                   {catalog.data?.rules.advanceNoticeHours ?? bookingRules.advanceNoticeHours} hours

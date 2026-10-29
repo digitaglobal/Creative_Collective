@@ -1,5 +1,54 @@
 import { test, expect, type Page } from "@playwright/test";
 
+test("guest sees price, signs in without losing selections, and can edit on mobile", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/enigma/services/meeting-room");
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + 49);
+  while (date.getUTCDay() !== 1) date.setUTCDate(date.getUTCDate() + 1);
+  const day = date.toISOString().slice(0, 10);
+  await page.getByLabel("Booking date").fill(day);
+  await page.getByLabel("Duration", { exact: true }).selectOption("120");
+  await page.getByLabel("Booking attendees", { exact: true }).fill("3");
+  await page.getByRole("button", { name: "11:00", exact: true }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.getByText("Total (JMD)")).toBeVisible();
+  await expect(page.getByText(/This is a request, not a confirmed booking/)).toBeVisible();
+  const target = new URL(page.url()).pathname + new URL(page.url()).search;
+  await page.locator("main").getByRole("link", { name: "Sign in", exact: true }).click();
+  await page.getByLabel("Email", { exact: true }).fill("customer@example.invalid");
+  await page.getByLabel("Password", { exact: true }).fill("testpassword");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp("/checkout\\?"));
+  expect(new URL(page.url()).pathname + new URL(page.url()).search).toBe(target);
+  await page.getByRole("link", { name: "Edit space and time selections" }).click();
+  await expect(page.getByLabel("Booking date")).toHaveValue(day);
+  await expect(page.getByLabel("Duration", { exact: true })).toHaveValue("120");
+  await expect(page.getByLabel("Booking attendees", { exact: true })).toHaveValue("3");
+  await expect(page.getByRole("button", { name: "11:00", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: ".cache/booking-conversion-mobile.png", fullPage: true });
+});
+
+test("closed date offers checked alternatives and preserves duration", async ({ page }) => {
+  await page.goto("/enigma/services/meeting-room");
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + 56);
+  while (date.getUTCDay() !== 0) date.setUTCDate(date.getUTCDate() + 1);
+  await page.getByLabel("Duration", { exact: true }).selectOption("120");
+  await page.getByLabel("Booking date").fill(date.toISOString().slice(0, 10));
+  const alternatives = page.getByRole("region", { name: "Alternative times" });
+  await expect(alternatives.getByRole("button").first()).toBeVisible();
+  await alternatives.getByRole("button").first().click();
+  await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeEnabled();
+  await expect(page.getByLabel("Duration", { exact: true })).toHaveValue("120");
+});
+
 async function signIn(page: Page, email: string) {
   await page.goto("/login");
   await page.getByLabel("Email", { exact: true }).fill(email);
@@ -34,6 +83,11 @@ test("customer requests a real reservation; staff approve, record payment, check
   const staff = await browser.newPage();
   await signIn(staff, "staff@example.invalid");
   await staff.goto("/admin");
+  await expect(
+    staff
+      .getByRole("region", { name: "Booking conversion" })
+      .getByRole("cell", { name: "desktop", exact: true }),
+  ).toBeVisible();
   await staff.locator("button.surface-panel").filter({ hasText: reference }).click();
   await staff.getByRole("button", { name: "confirmed", exact: true }).click();
   await expect(staff.getByText("Saved.", { exact: true })).toBeVisible();

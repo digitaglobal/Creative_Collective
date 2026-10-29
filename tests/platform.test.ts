@@ -533,6 +533,38 @@ describe("database-backed booking platform", () => {
   });
 });
 
+it("funnel deduplicates visits, rejects forged submissions, and restricts reports to staff", async () => {
+  const visit = "60000000-0000-0000-0000-000000000001";
+  await actor("", "anon");
+  for (let i = 0; i < 2; i++)
+    await db.query("select record_booking_step($1,'svc-enigma-meeting','space_viewed','mobile')", [
+      visit,
+    ]);
+  await expect(db.query("select booking_funnel_report()")).rejects.toThrow();
+  await actor(bob);
+  await db.query(
+    "select record_booking_step($1,'svc-enigma-meeting','request_submitted','mobile',$2)",
+    [visit, booking],
+  );
+  await expect(db.query("select booking_funnel_report()")).rejects.toThrow(/Staff/);
+  await actor(staff);
+  const result = await db.query<{ report: { space_viewed: number; request_submitted: number }[] }>(
+    "select booking_funnel_report() as report",
+  );
+  expect(result.rows[0]!.report[0]!.space_viewed).toBe(1);
+  expect(result.rows[0]!.report[0]!.request_submitted).toBe(0);
+  await actor(alice);
+  await db.query(
+    "select record_booking_step($1,'svc-enigma-meeting','request_submitted','mobile',$2)",
+    [visit, booking],
+  );
+  await actor(staff);
+  const verified = await db.query<{ report: { request_submitted: number }[] }>(
+    "select booking_funnel_report() as report",
+  );
+  expect(verified.rows[0]!.report[0]!.request_submitted).toBe(1);
+});
+
 it("uses Jamaica's date near the UTC boundary and escapes calendar text", () => {
   expect(venueDate(new Date("2026-10-09T02:00:00Z"))).toBe("2026-10-08");
   const text = calendarText({
