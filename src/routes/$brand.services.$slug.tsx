@@ -1,3 +1,4 @@
+import { AvailabilityWeek } from "@/components/availability-week";
 import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
@@ -257,8 +258,23 @@ function ServicePage() {
             ) : null}
           </div>
 
-          <aside className="surface-panel h-fit space-y-5 p-5 lg:sticky lg:top-28">
+          <aside className="surface-panel min-w-0 h-fit space-y-5 rounded-2xl p-5">
             <BookingStepper current={0} />
+            {catalog.isSuccess && (
+              <AvailabilityWeek
+                days={days}
+                date={date}
+                onDate={(day) => {
+                  setDate(day);
+                  setStart(null);
+                }}
+                serviceId={service.id}
+                duration={duration}
+                extras={extras}
+                enabled={bookable}
+                sundayClosed={catalog.data?.hours?.sundayClosed ?? false}
+              />
+            )}
             {!bookable ? (
               <p className="text-sm text-muted-foreground">
                 {service.draftReason ||
@@ -266,42 +282,6 @@ function ServicePage() {
               </p>
             ) : (
               <>
-                <fieldset>
-                  <legend className="text-sm font-medium">Date</legend>
-                  <input
-                    aria-label="Booking date"
-                    type="date"
-                    value={date}
-                    min={days[0]}
-                    max={days[days.length - 1]}
-                    onChange={(e) => {
-                      setDate(e.target.value);
-                      setStart(null);
-                    }}
-                    className="mt-2 w-full rounded border bg-background p-2"
-                  />
-                  <div className="mt-2 hidden gap-2 overflow-x-auto pb-1">
-                    {days.map((d) => {
-                      const closed = false;
-                      return (
-                        <button
-                          key={d}
-                          type="button"
-                          disabled={closed}
-                          aria-pressed={d === date}
-                          onClick={() => {
-                            setDate(d);
-                            setStart(null);
-                          }}
-                          className={`shrink-0 rounded-md border px-3 py-2 text-xs ${d === date ? "border-primary bg-primary text-primary-foreground" : "border-border"} disabled:opacity-40`}
-                        >
-                          {formatDateShort(d).replace(/ \d{4}$/, "")}
-                          {closed ? <span className="block">Closed</span> : null}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </fieldset>
                 <div className="grid grid-cols-2 gap-3">
                   <label className="text-sm font-medium">
                     Duration
@@ -345,14 +325,27 @@ function ServicePage() {
                       ({VENUE_TIMEZONE_LABEL})
                     </span>
                   </legend>
+                  <p className="mt-2 text-sm font-medium" aria-live="polite">
+                    {formatDateShort(date)}
+                    {start ? ` · Selected ${start}` : " · Choose a start time"}
+                  </p>
                   {availability.isLoading ? (
                     <p role="status">Checking availability…</p>
                   ) : availability.error ? (
-                    <p role="alert">{availability.error.message}</p>
+                    <p role="alert">
+                      Could not check times.{" "}
+                      <button
+                        type="button"
+                        className="underline"
+                        onClick={() => void availability.refetch()}
+                      >
+                        Try again
+                      </button>
+                    </p>
                   ) : slots.length === 0 ? (
                     <p className="mt-2 text-sm text-muted-foreground">No times on this day.</p>
                   ) : (
-                    <div className="mt-2 grid grid-cols-4 gap-2">
+                    <div className="mt-2 grid grid-cols-3 gap-2">
                       {slots.map((s) => (
                         <button
                           key={s.start}
@@ -364,7 +357,7 @@ function ServicePage() {
                             setStart(s.start);
                             trackBookingStep("time_selected", service.id);
                           }}
-                          className={`rounded-md border px-2 py-1.5 text-xs tabular-nums ${start === s.start ? "border-primary bg-primary text-primary-foreground" : "border-border"} disabled:line-through disabled:opacity-40`}
+                          className={`min-h-11 rounded-lg border px-2 py-2 text-sm tabular-nums ${start === s.start ? "border-primary bg-primary text-primary-foreground" : "border-border"} disabled:line-through disabled:opacity-40`}
                         >
                           {s.start}
                         </button>

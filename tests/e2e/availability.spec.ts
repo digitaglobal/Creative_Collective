@@ -1,0 +1,28 @@
+import { test, expect } from "@playwright/test";
+test("mobile week comparison preserves choices and respects booking window", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/enigma/services/meeting-room");
+  const day = new Date();
+  day.setUTCDate(day.getUTCDate() + 49);
+  while (day.getUTCDay() !== 0) day.setUTCDate(day.getUTCDate() + 1);
+  await page.getByLabel("Booking date").fill(day.toISOString().slice(0, 10));
+  await page.getByLabel("Duration", { exact: true }).selectOption("120");
+  await page.getByLabel("Booking attendees", { exact: true }).fill("3");
+  const week = page.getByRole("region", { name: "Weekly availability" });
+  await expect(week.getByRole("button", { name: /^Sun.*Closed/ })).toBeVisible();
+  const monday = week.getByRole("button", { name: /^Mon/ });
+  await expect(monday).toContainText("available");
+  await monday.click();
+  await expect(monday).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByLabel("Duration", { exact: true })).toHaveValue("120");
+  await expect(page.getByLabel("Booking attendees", { exact: true })).toHaveValue("3");
+  await page.getByRole("button", { name: "11:00", exact: true }).click();
+  await week.getByRole("button", { name: "Next week" }).click();
+  await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeDisabled();
+  await expect(page.getByLabel("Duration", { exact: true })).toHaveValue("120");
+  await week.getByRole("button", { name: "Previous week" }).click();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await week.screenshot({ path: ".cache/availability-week-mobile.png" });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await week.screenshot({ path: ".cache/availability-week-desktop.png" });
+});
