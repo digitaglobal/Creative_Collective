@@ -88,22 +88,22 @@ export function AdminConfiguration() {
     }
   };
   return (
-    <section className="surface-panel space-y-4 p-5">
+    <section aria-label="Administrator configuration" className="min-w-0 space-y-6">
       <h2 className="text-xl font-semibold">Administrator configuration</h2>
-      <p>
+      <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
         Catalog proposals start unapproved. Review resources, prices, policies, tax and arrival
         information before enabling reservations. A tax rate of 0 must be an explicit business
         decision.
       </p>
-      <label>
-        Manage{" "}
+      <label className="grid max-w-md gap-2 text-sm font-medium">
+        Manage
         <select
           value={table}
           onChange={(e) => {
             setTable(e.target.value as Table);
             setDraft("");
           }}
-          className="rounded border bg-background p-2"
+          className="min-h-11 w-full min-w-0 rounded-lg border bg-background px-3 py-2"
         >
           {tables.map((t) => (
             <option key={t} value={t}>
@@ -114,11 +114,11 @@ export function AdminConfiguration() {
       </label>
       {q.error && <p role="alert">{q.error.message}</p>}
       {sources.error && <p role="alert">{sources.error.message}</p>}
-      <div className="max-h-96 overflow-auto">
+      <div className="max-h-96 space-y-2 overflow-auto" aria-label="Configuration records">
         {q.data?.map((row, i) => (
           <button
             key={i}
-            className="mb-2 block w-full rounded border p-2 text-left"
+            className="block min-h-11 w-full rounded-lg border p-3 text-left transition hover:border-primary focus-visible:outline-2 focus-visible:outline-primary"
             onClick={() =>
               setDraft(
                 JSON.stringify(
@@ -243,7 +243,7 @@ export function AdminConfiguration() {
         </Button>
       )}
       <form
-        className="space-y-3 border-t pt-4"
+        className="grid justify-items-start gap-5 border-t pt-6 [&_label]:grid [&_label]:w-full [&_label]:min-w-0 [&_label]:max-w-xl [&_label]:gap-2 [&_label]:text-sm [&_label]:font-medium [&_select]:m-0 [&_select]:min-h-11 [&_select]:w-full [&_select]:min-w-0 [&_select]:rounded-lg [&_select]:border [&_select]:bg-background [&_select]:px-3 [&_select]:py-2"
         onSubmit={(e) => {
           e.preventDefault();
           const f = new FormData(e.currentTarget);
@@ -274,7 +274,7 @@ export function AdminConfiguration() {
         <Button disabled={busy}>Update role</Button>
       </form>
       <form
-        className="space-y-3 border-t pt-4"
+        className="grid justify-items-start gap-5 border-t pt-6 [&_label]:grid [&_label]:w-full [&_label]:min-w-0 [&_label]:max-w-xl [&_label]:gap-2 [&_label]:text-sm [&_label]:font-medium [&_select]:m-0 [&_select]:min-h-11 [&_select]:w-full [&_select]:min-w-0 [&_select]:rounded-lg [&_select]:border [&_select]:bg-background [&_select]:px-3 [&_select]:py-2"
         onSubmit={(e) => {
           e.preventDefault();
           const f = new FormData(e.currentTarget);
@@ -296,6 +296,7 @@ export function AdminConfiguration() {
           }).then(() => undefined);
         }}
       >
+        <h3 className="font-semibold">Venue photographs</h3>
         <label className="block">
           Service
           <select name="service" required className="ml-2 rounded border bg-background p-2">
@@ -308,7 +309,13 @@ export function AdminConfiguration() {
         </label>
         <label>
           Venue photograph
-          <input name="photo" type="file" accept="image/jpeg,image/png,image/webp" required />
+          <input
+            className="min-h-11 w-full min-w-0 rounded-lg border p-2 font-normal file:mr-3 file:rounded file:border-0 file:bg-muted file:px-3 file:py-2"
+            name="photo"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            required
+          />
         </label>
         <Button disabled={busy}>Upload photo</Button>
       </form>

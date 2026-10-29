@@ -91,7 +91,7 @@ export function ConfigurationEditor({
   };
   return (
     <form
-      className="space-y-3 rounded border p-4"
+      className="min-w-0 space-y-6 rounded-xl border bg-muted/20 p-4 sm:p-6"
       onSubmit={(e) => {
         e.preventDefault();
         setError("");
@@ -131,7 +131,7 @@ function Fields({
   choices: Choices;
 }) {
   return (
-    <div className="space-y-3">
+    <div className="grid min-w-0 gap-5">
       {Object.entries(value)
         .filter(
           ([key]) =>
@@ -140,11 +140,12 @@ function Fields({
         .map(([key, item]) => {
           const current = [...path, key];
           const label = labels[key] ?? key.replace(/_/g, " ");
-          const style = "mt-1 w-full rounded border bg-background p-2";
+          const style =
+            "mt-2 min-h-11 w-full min-w-0 rounded-lg border bg-background px-3 py-2 font-normal";
           if (Array.isArray(item)) {
             if (["included", "not-included", "bring"].includes(key))
               return (
-                <label key={key} className="block text-sm">
+                <label key={key} className="block min-w-0 text-sm font-medium">
                   {label} (one per line)
                   <textarea
                     rows={3}
@@ -155,8 +156,8 @@ function Fields({
                 </label>
               );
             return (
-              <fieldset key={key} className="space-y-3 rounded border p-3">
-                <legend>{label}</legend>
+              <fieldset key={key} className="min-w-0 space-y-5 rounded-xl border p-4">
+                <legend className="px-2 text-sm font-semibold">{label}</legend>
                 {item.map((entry, i) =>
                   typeof entry === "object" && entry !== null && !Array.isArray(entry) ? (
                     <div key={i} className="space-y-2 rounded border p-3">
@@ -207,14 +208,17 @@ function Fields({
           }
           if (typeof item === "object" && item !== null)
             return (
-              <fieldset key={key} className="space-y-3 rounded border p-3">
-                <legend>{label}</legend>
+              <fieldset key={key} className="min-w-0 space-y-5 rounded-xl border p-4">
+                <legend className="px-2 text-sm font-semibold">{label}</legend>
                 <Fields value={item} path={current} update={update} choices={choices} />
               </fieldset>
             );
           if (typeof item === "boolean")
             return (
-              <label key={key} className="flex gap-2 text-sm">
+              <label
+                key={key}
+                className="flex min-h-11 items-center gap-3 rounded-lg border bg-background p-3 text-sm"
+              >
                 <input
                   type="checkbox"
                   checked={item}
@@ -238,7 +242,7 @@ function Fields({
                 : null);
           if (options)
             return (
-              <label key={key} className="block text-sm">
+              <label key={key} className="block min-w-0 text-sm font-medium">
                 {label}
                 <select
                   value={String(item ?? "")}
@@ -256,7 +260,7 @@ function Fields({
             );
           if (multiline.has(key))
             return (
-              <label key={key} className="block text-sm">
+              <label key={key} className="block min-w-0 text-sm font-medium">
                 {label}
                 <textarea
                   value={String(item ?? "")}
@@ -276,7 +280,7 @@ function Fields({
                 ? Number(item) / 100
                 : (item ?? "");
           return (
-            <label key={key} className="block text-sm">
+            <label key={key} className="block min-w-0 text-sm font-medium">
               {label}
               <input
                 type={

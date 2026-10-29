@@ -312,6 +312,15 @@ test("administrator edits booking settings with ordinary fields", async ({ page 
   await page.goto("/admin");
   await page.getByText("Administrator settings", { exact: true }).click();
   await page.getByRole("button", { name: "Booking settings", exact: true }).click();
+  await page
+    .getByRole("region", { name: "Administrator configuration", exact: true })
+    .screenshot({ path: ".cache/admin-configuration-desktop.png" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page
+    .getByRole("region", { name: "Administrator configuration", exact: true })
+    .screenshot({ path: ".cache/admin-configuration-mobile.png" });
+  await page.setViewportSize({ width: 1280, height: 900 });
   await page.getByLabel("Advance notice (hours)", { exact: true }).fill("5");
   await page.getByRole("button", { name: "Save configuration", exact: true }).click();
   await expect(page.getByText("Saved.", { exact: true })).toBeVisible();
