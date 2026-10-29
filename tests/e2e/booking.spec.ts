@@ -80,6 +80,16 @@ test("customer requests a real reservation; staff approve, record payment, check
   );
   await page.goto("/account/bookings");
   await expect(page.getByRole("heading", { name: new RegExp(reference) })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await expect(
+    page.getByText("Your request is with the team. Wait for approval before making travel plans.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.screenshot({ path: ".cache/my-bookings-mobile.png", fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.screenshot({ path: ".cache/my-bookings-desktop.png", fullPage: true });
   const staff = await browser.newPage();
   await signIn(staff, "staff@example.invalid");
   await staff.goto("/admin");
@@ -106,7 +116,9 @@ test("customer requests a real reservation; staff approve, record payment, check
   await staff.getByRole("button", { name: "Complete booking", exact: true }).click();
   await expect(staff.getByText("Saved.", { exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByText("completed · paid", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "past", exact: true }).click();
+  await expect(page.getByText("Payment: paid", { exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Booking updates" })).toContainText("Completed");
   await staff.getByTestId("booking-card").filter({ hasText: reference }).click();
   await staff.getByText("Notes, payments and audit history", { exact: true }).click();
   await expect(staff.getByText(/Completed \/ Test Staff/)).toBeVisible();
@@ -290,7 +302,8 @@ test("staff filters reservations, keeps notes private, records partial payments 
   await staff.getByRole("button", { name: "Confirm rejection", exact: true }).click();
   await expect(staff.getByText("Saved.", { exact: true })).toBeVisible();
   await page.goto("/account/bookings");
-  await expect(page.getByText("cancelled · refunded", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "past", exact: true }).click();
+  await expect(page.getByText("Payment: refunded", { exact: true })).toBeVisible();
   await expect(page.getByText(/Private payment follow-up test/)).toHaveCount(0);
   await staff.getByLabel("Date", { exact: true }).fill("");
   await staff.getByLabel("Search", { exact: true }).fill("CC-TEST-NOSHOW");
