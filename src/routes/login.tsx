@@ -9,9 +9,9 @@ import { bookingReturnTo } from "@/lib/booking-journey";
 export const Route = createFileRoute("/login")({
   validateSearch: (
     search: Record<string, unknown>,
-  ): { returnTo?: string | undefined; recovery?: string | undefined } => ({
+  ): { returnTo?: string | undefined; recovery?: number | undefined } => ({
     returnTo: search["returnTo"] ? bookingReturnTo(search["returnTo"]) : undefined,
-    recovery: search["recovery"] === "1" ? "1" : undefined,
+    recovery: String(search["recovery"]) === "1" ? 1 : undefined,
   }),
   head: () => ({ meta: [{ name: "robots", content: "noindex" }] }),
   component: Login,
@@ -28,9 +28,9 @@ function Login() {
     const { data } = supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") setMode("update");
     });
-    if (new URLSearchParams(window.location.search).get("recovery") === "1") setMode("update");
+    if (search.recovery === 1) setMode("update");
     return () => data.subscription.unsubscribe();
-  }, []);
+  }, [search.recovery]);
   const field = "mt-1 w-full rounded border bg-background p-2";
   return (
     <SiteLayout>
@@ -56,12 +56,21 @@ function Login() {
             Accounts are awaiting backend setup.
           </p>
         )}
+        {mode === "update" && !auth.loading && !auth.user && (
+          <p role="alert" className="mt-4">
+            This reset session is missing or expired. Use Forgot password below to request a fresh
+            link.
+          </p>
+        )}
         {auth.user && mode !== "update" && (
           <p className="mt-4">
             Signed in as {auth.user.email}.{" "}
             <Link to="/account/bookings" className="underline">
               My bookings
             </Link>
+            <button type="button" className="ml-3 underline" onClick={() => setMode("update")}>
+              Set a new password
+            </button>
             {search.returnTo && (
               <a className="ml-3 underline" href={destination}>
                 Return to booking
@@ -111,6 +120,8 @@ function Login() {
                 setMessage("If an account exists, a reset link has been sent.");
               }
               if (mode === "update") {
+                if (password !== String(f.get("confirmPassword") ?? ""))
+                  throw new Error("Passwords do not match.");
                 const { error } = await client.auth.updateUser({ password });
                 if (error) throw error;
                 setMessage("Password updated.");
@@ -161,8 +172,26 @@ function Login() {
               />
             </label>
           )}
-          <Button disabled={busy || !backendConfigured || auth.loading} className="w-full">
-            {busy ? "Please wait…" : "Continue"}
+          {mode === "update" && (
+            <label className="block text-sm">
+              Confirm new password
+              <input
+                type="password"
+                name="confirmPassword"
+                required
+                minLength={8}
+                autoComplete="new-password"
+                className={field}
+              />
+            </label>
+          )}
+          <Button
+            disabled={
+              busy || !backendConfigured || auth.loading || (mode === "update" && !auth.user)
+            }
+            className="w-full"
+          >
+            {busy ? "Please wait…" : mode === "update" ? "Save new password" : "Continue"}
           </Button>
           {message && <p role="status">{message}</p>}
         </form>

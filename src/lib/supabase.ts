@@ -2,6 +2,11 @@ import { createClient } from "@supabase/supabase-js";
 
 const url = import.meta.env["VITE_SUPABASE_URL"];
 const key = import.meta.env["VITE_SUPABASE_ANON_KEY"];
+// Capture only the recovery intent before Supabase consumes the URL fragment.
+// Never retain or log tokens here.
+export const recoveryLanding =
+  typeof window !== "undefined" &&
+  new URLSearchParams(window.location.hash.slice(1)).get("type") === "recovery";
 export const backendConfigured = Boolean(url && key);
 export const supabase = backendConfigured
   ? createClient(url, key, {

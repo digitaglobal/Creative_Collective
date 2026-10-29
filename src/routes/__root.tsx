@@ -9,6 +9,7 @@ import {
   type ErrorComponentProps,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
+import { supabase, recoveryLanding } from "@/lib/supabase";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -119,6 +120,29 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  useEffect(() => {
+    if (!supabase) return;
+    let active = true;
+    const showRecovery = () => {
+      if (!active) return;
+      if (
+        window.location.pathname === "/login" &&
+        new URLSearchParams(window.location.search).get("recovery") === "1"
+      )
+        return;
+      window.location.replace("/login?recovery=1");
+    };
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") setTimeout(showRecovery, 0);
+    });
+    // Initialization may complete before this effect subscribes. Wait for it so
+    // navigation never removes the fragment before the auth client reads it.
+    if (recoveryLanding) void supabase.auth.getSession().then(showRecovery);
+    return () => {
+      active = false;
+      data.subscription.unsubscribe();
+    };
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
