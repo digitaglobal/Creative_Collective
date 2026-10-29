@@ -31,7 +31,7 @@ function Help() {
     },
     { q: "What time zone are times in?", a: `All times are in ${VENUE_TIMEZONE_LABEL}.` },
     {
-      q: "When are you open?",
+      q: "When is Studio D open?",
       a: hours
         ? `Weekdays ${hours.weekdayOpen.slice(0, 5)}–${hours.weekdayClose.slice(0, 5)}, Saturday ${hours.saturdayOpen.slice(0, 5)}–${hours.saturdayClose.slice(0, 5)}.${hours.sundayClosed ? " Closed Sunday." : " Sunday follows weekday hours."}`
         : "Opening hours await venue setup.",
@@ -61,6 +61,13 @@ function Help() {
           }
         />
         <dl className="mt-8 space-y-4">
+          <div className="surface-panel p-5">
+            <dt className="font-semibold">When is Enigma open?</dt>
+            <dd className="mt-1 text-sm text-muted-foreground">
+              Monday–Thursday 08:00–17:00; Friday 08:00–16:00, Jamaica time. Weekend opening hours
+              await confirmation.
+            </dd>
+          </div>
           {faqs.map((f) => (
             <div key={f.q} className="surface-panel p-5">
               <dt className="font-semibold">{f.q}</dt>

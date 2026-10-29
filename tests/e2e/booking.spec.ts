@@ -51,6 +51,9 @@ test("customer requests a real reservation; staff approve, record payment, check
   await expect(staff.getByText("Saved.", { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByText("completed · paid", { exact: true })).toBeVisible();
+  await staff.locator("button.surface-panel").filter({ hasText: reference }).click();
+  await staff.getByText("Notes, payments and audit history", { exact: true }).click();
+  await expect(staff.getByText(/· completed · 10000000/)).toBeVisible();
   expect(errors).toEqual([]);
   await staff.close();
 });
@@ -67,6 +70,122 @@ test("mobile catalog has no horizontal overflow and customer cannot open staff o
   await signIn(page, "customer@example.invalid");
   await page.goto("/admin");
   await expect(page.getByText("Staff access is required.", { exact: true })).toBeVisible();
+});
+
+test("staff filters reservations, keeps notes private, records partial payments and refunds, and rejects requests", async ({
+  page,
+  browser,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await signIn(page, "customer@example.invalid");
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + 35);
+  while (date.getUTCDay() !== 1) date.setUTCDate(date.getUTCDate() + 1);
+  const day = date.toISOString().slice(0, 10);
+  async function request(hour: string) {
+    await page.goto("/enigma/services/meeting-room");
+    await page.getByLabel("Booking date").fill(day);
+    await page.getByRole("button", { name: hour, exact: true }).click();
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    await page.getByRole("checkbox", { name: "I accept the policies shown above." }).check();
+    await page.getByRole("button", { name: "Request reservation", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Reservation received" })).toBeVisible();
+    return (await page.getByText(/^Reference: CC-/).textContent())!.replace("Reference: ", "");
+  }
+  const reference = await request("12:00");
+  const rejected = await request("14:00");
+  const staff = await browser.newPage();
+  staff.on("pageerror", (error) => errors.push(error.message));
+  await signIn(staff, "staff@example.invalid");
+  await staff.goto("/admin");
+  const cards = staff.locator("button.surface-panel");
+  await staff.getByLabel("Search", { exact: true }).fill(reference);
+  await staff.getByLabel("Date", { exact: true }).fill(day);
+  await staff.getByLabel("Brand", { exact: true }).selectOption("enigma");
+  await staff.getByLabel("Status", { exact: true }).selectOption("pending_confirmation");
+  await staff.getByLabel("Payment", { exact: true }).selectOption("unpaid");
+  await staff.getByLabel("Resource", { exact: true }).selectOption("res-enigma-meeting");
+  await expect(cards).toHaveCount(1);
+  await staff.getByLabel("Brand", { exact: true }).selectOption("studio-d");
+  await expect(cards).toHaveCount(0);
+  await staff.getByLabel("Brand", { exact: true }).selectOption("enigma");
+  await staff.getByRole("button", { name: "Calendar", exact: true }).click();
+  await expect(cards).toHaveCount(1);
+  await staff.getByRole("button", { name: "List", exact: true }).click();
+  await staff.getByLabel("Status", { exact: true }).selectOption("");
+  await staff.getByLabel("Payment", { exact: true }).selectOption("");
+  await staff.getByLabel("Resource", { exact: true }).selectOption("");
+  async function open() {
+    await cards.filter({ hasText: reference }).click();
+  }
+  await open();
+  await staff.getByLabel("Internal note").fill("Private payment follow-up test");
+  await staff.getByRole("button", { name: "Add note", exact: true }).click();
+  await expect(staff.getByText("Saved.", { exact: true })).toBeVisible();
+  await open();
+  await staff.getByText("Notes, payments and audit history", { exact: true }).click();
+  await expect(staff.getByText(/Private payment follow-up test/)).toBeVisible();
+  await staff.getByRole("button", { name: "confirmed", exact: true }).click();
+  await expect(staff.getByText("Saved.", { exact: true })).toBeVisible();
+  await open();
+  await staff.getByRole("button", { name: "no show", exact: true }).click();
+  await expect(staff.getByText("Session has not started", { exact: true })).toBeVisible();
+  async function transaction(amount: string, kind: string, receipt: string) {
+    await staff.getByLabel("Kind", { exact: true }).selectOption(kind);
+    await staff.getByLabel("Amount (JMD)", { exact: true }).fill(amount);
+    await staff.getByLabel("Method", { exact: true }).fill("cash");
+    await staff.getByLabel("Receipt/reference", { exact: true }).fill(receipt);
+    await staff.getByRole("button", { name: "Record transaction", exact: true }).click();
+  }
+  await transaction("2000", "payment", "staff-partial");
+  await expect(staff.getByText("Saved.", { exact: true })).toBeVisible();
+  await open();
+  await expect(
+    staff.getByText(/Total .*5,750\.00.*Paid .*2,000\.00.*Balance .*3,750\.00/),
+  ).toBeVisible();
+  await transaction("3750.01", "payment", "staff-overpayment");
+  await expect(staff.getByText("Payment exceeds balance", { exact: true })).toBeVisible();
+  await transaction("3750", "payment", "staff-balance");
+  await expect(staff.getByText("Saved.", { exact: true })).toBeVisible();
+  await open();
+  await staff.getByRole("button", { name: "cancelled", exact: true }).click();
+  await expect(staff.getByText("Saved.", { exact: true })).toBeVisible();
+  await open();
+  await expect(
+    staff.getByText(/Total .*5,750\.00.*Paid .*5,750\.00.*Balance .*0\.00/),
+  ).toBeVisible();
+  await transaction("5750.01", "refund", "staff-over-refund");
+  await expect(staff.getByText("Refund exceeds recorded payments", { exact: true })).toBeVisible();
+  await transaction("5750", "refund", "staff-full-refund");
+  await expect(staff.getByText("Saved.", { exact: true })).toBeVisible();
+  await open();
+  await staff.getByText("Notes, payments and audit history", { exact: true }).click();
+  await expect(staff.getByText(/staff-partial/)).toHaveCount(1);
+  await expect(staff.getByText(/staff-full-refund/)).toHaveCount(1);
+  await expect(staff.getByText(/staff-overpayment|staff-over-refund/)).toHaveCount(0);
+  await staff.getByLabel("Payment", { exact: true }).selectOption("refunded");
+  await expect(cards).toHaveCount(1);
+  await staff.getByLabel("Payment", { exact: true }).selectOption("");
+  await staff.getByLabel("Search", { exact: true }).fill(rejected);
+  await cards.filter({ hasText: rejected }).click();
+  await staff.getByRole("button", { name: "cancelled", exact: true }).click();
+  await expect(staff.getByText("Saved.", { exact: true })).toBeVisible();
+  await page.goto("/account/bookings");
+  await expect(page.getByText("cancelled · refunded", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Private payment follow-up test/)).toHaveCount(0);
+  await staff.getByLabel("Date", { exact: true }).fill("");
+  await staff.getByLabel("Search", { exact: true }).fill("CC-TEST-NOSHOW");
+  await cards.filter({ hasText: "CC-TEST-NOSHOW" }).click();
+  await staff.getByRole("button", { name: "no show", exact: true }).click();
+  await expect(staff.getByText("Saved.", { exact: true })).toBeVisible();
+  await staff.getByLabel("Status", { exact: true }).selectOption("no_show");
+  await expect(cards).toHaveCount(1);
+  await cards.click();
+  await staff.getByText("Notes, payments and audit history", { exact: true }).click();
+  await expect(staff.getByText(/· no_show · 10000000/)).toBeVisible();
+  expect(errors).toEqual([]);
+  await staff.close();
 });
 
 test("administrator edits booking settings with ordinary fields", async ({ page }) => {
@@ -131,5 +250,34 @@ test("customer enquiry becomes a reviewed quote and a saved reservation", async 
     page.getByText("Quote accepted. Reservation awaits staff approval.", { exact: true }),
   ).toBeVisible();
   await expect(page.getByRole("heading", { name: /Studio rental/ })).toBeVisible();
+  const bookingCard = page.locator("article").filter({ hasText: "Studio rental" });
+  await bookingCard.getByLabel("Change type").selectOption("reschedule");
+  const movedDay = new Date(date.getTime() + 7 * 86400000).toISOString().slice(0, 10);
+  await bookingCard.getByLabel("New start (Jamaica)").fill(movedDay + "T09:00");
+  await bookingCard.getByLabel("New end (Jamaica)").fill(movedDay + "T17:00");
+  await bookingCard.getByLabel("Reason", { exact: true }).fill("Move studio rental e2e");
+  await bookingCard.getByRole("button", { name: "Request change", exact: true }).click();
+  await expect(
+    bookingCard.getByText("Change request: reschedule · pending", { exact: true }),
+  ).toBeVisible();
+  await staff.reload();
+  const changeForm = staff.locator("form").filter({ hasText: "Move studio rental e2e" });
+  await changeForm.getByLabel("Revised rental subtotal", { exact: false }).fill("15000");
+  await changeForm.getByRole("button", { name: "Offer revised price", exact: true }).click();
+  await expect(
+    changeForm.getByRole("button", { name: "Approve reschedule", exact: true }),
+  ).toBeDisabled();
+  await page.reload();
+  await bookingCard.getByRole("button", { name: "Accept revised price", exact: true }).click();
+  await expect(
+    bookingCard.getByText("Revised price accepted. Awaiting staff approval.", { exact: true }),
+  ).toBeVisible();
+  await staff.reload();
+  await changeForm.getByRole("button", { name: "Approve reschedule", exact: true }).click();
+  await expect(staff.getByText("Saved.", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(
+    bookingCard.getByText("Change request: reschedule · approved", { exact: true }),
+  ).toBeVisible();
   await staff.close();
 });

@@ -267,7 +267,7 @@ function BookingCard({ booking: b }: { booking: Booking }) {
         </p>
       ))}
       <p>
-        Total {formatMoney(b.total_minor)} ? Paid {formatMoney(b.paid_minor)} ? Balance{" "}
+        Total {formatMoney(b.total_minor)} · Paid {formatMoney(b.paid_minor)} · Balance{" "}
         {formatMoney(b.total_minor - b.paid_minor)}
       </p>
       <p className="whitespace-pre-wrap">{b.arrival_instructions}</p>
@@ -289,9 +289,52 @@ function BookingCard({ booking: b }: { booking: Booking }) {
         ))}
       </details>
       {changes.data?.map((c) => (
-        <p key={c.id}>
-          Change request: {c.kind} · {c.state}
-        </p>
+        <div key={c.id} className="space-y-2">
+          <p>
+            Change request: {c.kind} · {c.state}
+          </p>
+          {c.proposed_start && (
+            <p>
+              {c.proposed_start} to {c.proposed_end} (dates include timezone)
+            </p>
+          )}
+          {c.state === "pending" && c.revised_total_minor != null && (
+            <>
+              <p>
+                Revised rental total including tax: {formatMoney(c.revised_total_minor)}.
+                Difference: {formatMoney(c.revised_total_minor - b.total_minor)}.
+              </p>
+              {c.price_accepted_at ? (
+                <p>
+                  Price accepted. Awaiting staff approval; your original reservation remains active.
+                </p>
+              ) : (
+                <Button
+                  disabled={busy}
+                  onClick={async () => {
+                    setBusy(true);
+                    try {
+                      await rpc("accept_rental_change", {
+                        p_id: c.id,
+                        p_expected_total: c.revised_total_minor,
+                      });
+                      await qc.invalidateQueries({ queryKey: ["changes", b.id] });
+                      setMessage("Revised price accepted. Awaiting staff approval.");
+                    } catch (err) {
+                      setMessage(
+                        err instanceof Error ? err.message : "Unable to accept revised price",
+                      );
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  Accept revised price
+                </Button>
+              )}
+            </>
+          )}
+        </div>
       ))}
       {changes.error && <p role="alert">{changes.error.message}</p>}
       {["confirmed", "pending_confirmation"].includes(b.booking_state) &&
@@ -329,14 +372,18 @@ function BookingCard({ booking: b }: { booking: Booking }) {
                 className="ml-2 rounded border bg-background p-2"
               >
                 <option value="cancel">Cancellation</option>
-                {!b.price_snapshot.lines.some((l) => l.label === "Long rental") &&
-                  !("quoteId" in b.price_snapshot) && (
-                    <option value="reschedule">Reschedule</option>
-                  )}
+                <option value="reschedule">Reschedule</option>
               </select>
             </label>
             {kind === "reschedule" && (
               <>
+                {(b.price_snapshot.lines.some((l) => l.label === "Long rental") ||
+                  "quoteId" in b.price_snapshot) && (
+                  <p>
+                    Staff will offer a revised total for you to accept before approving the move.
+                    Your original reservation stays active.
+                  </p>
+                )}
                 <label className="block">
                   New start (Jamaica)
                   <input

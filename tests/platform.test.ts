@@ -58,6 +58,25 @@ afterAll(async () => {
 });
 
 describe("database-backed booking platform", () => {
+  it("uses Enigma weekday hours and keeps weekends and hot-desk inventory pending", async () => {
+    await db.exec("reset role");
+    const hours = await db.query<{ day: string; opens: string | null; closes: string | null }>(
+      `select h.* from unnest(array['2026-11-02'::date,'2026-11-06'::date,'2026-11-07'::date,'2026-11-08'::date]) d cross join lateral public.service_day_hours('svc-enigma-meeting',d) h`,
+    );
+    expect(hours.rows.map(({ opens, closes }) => [opens, closes])).toEqual([
+      ["08:00:00", "17:00:00"],
+      ["08:00:00", "16:00:00"],
+      [null, null],
+      [null, null],
+    ]);
+    const hotDesk = await db.query<{
+      approved: boolean;
+      document: { hourlyRateMinor: number; bookableHourly: boolean };
+    }>("select approved,document from services where id='svc-enigma-hot-desk'");
+    expect(hotDesk.rows[0]?.approved).toBe(false);
+    expect(hotDesk.rows[0]?.document.hourlyRateMinor).toBe(100000);
+    expect(hotDesk.rows[0]?.document.bookableHourly).toBe(false);
+  });
   it("installs all migrations and disables booking until approved", async () => {
     await actor(alice);
     await expect(reserve()).rejects.toThrow(/approval|approved/);
@@ -245,6 +264,77 @@ describe("database-backed booking platform", () => {
         ])
       ).rows[0]!.id,
     ).toBe(accepted.rows[0]!.id);
+    const rentalId = accepted.rows[0]!.id;
+    const proposedStart = new Date(new Date(qs).getTime() + 7 * 86400000).toISOString();
+    const proposedEnd = new Date(new Date(proposedStart).getTime() + 2 * 86400000).toISOString();
+    const requested = await db.query<{ id: string }>(
+      "select * from request_change($1,'reschedule',$2,$3,'Extend the rental please')",
+      [rentalId, proposedStart, proposedEnd],
+    );
+    const changeId = requested.rows[0]!.id;
+    await expect(db.query("select offer_rental_change($1,2000000)", [changeId])).rejects.toThrow();
+    await actor(staff);
+    await db.query("select offer_rental_change($1,2000000)", [changeId]);
+    await expect(db.query("select review_change($1,true,2300000)", [changeId])).rejects.toThrow(
+      /accept/,
+    );
+    await actor(bob);
+    await expect(db.query("select accept_rental_change($1,2300000)", [changeId])).rejects.toThrow();
+    await actor(alice);
+    await expect(db.query("select accept_rental_change($1,1)", [changeId])).rejects.toThrow(
+      /current/,
+    );
+    await db.query("select accept_rental_change($1,2300000)", [changeId]);
+    await actor(staff);
+    await db.query("select offer_rental_change($1,2000000)", [changeId]);
+    await expect(db.query("select review_change($1,true,2300000)", [changeId])).rejects.toThrow(
+      /accept/,
+    );
+    await actor(alice);
+    await db.query("select accept_rental_change($1,2300000)", [changeId]);
+    const blocker = await reserve(proposedStart, "20000000-0000-0000-0000-000000000088");
+    await actor(staff);
+    await expect(db.query("select review_change($1,true,2300000)", [changeId])).rejects.toThrow();
+    expect(
+      (await db.query("select * from allocations where booking_id=$1", [rentalId])).rows,
+    ).toHaveLength(1);
+    await db.query("select transition_booking($1,'cancelled')", [blocker.rows[0]!.id]);
+    const moved = await db.query<{ total_minor: number; price_snapshot: { quoteId: string } }>(
+      "select * from review_change($1,true,2300000)",
+      [changeId],
+    );
+    expect(Number(moved.rows[0]!.total_minor)).toBe(2300000);
+    expect(moved.rows[0]!.price_snapshot.quoteId).toBe(second.rows[0]!.id);
+    await db.query(
+      "select record_payment($1,1000000,'payment','cash','rental-payment',gen_random_uuid())",
+      [rentalId],
+    );
+    await actor(alice);
+    const cheaper = await db.query<{ id: string }>(
+      "select * from request_change($1,'reschedule',$2,$3,'Request cheaper rental')",
+      [rentalId, proposedStart, proposedEnd],
+    );
+    const cheaperId = cheaper.rows[0]!.id;
+    await actor(staff);
+    await db.query("select offer_rental_change($1,500000)", [cheaperId]);
+    await actor(alice);
+    await db.query("select accept_rental_change($1,575000)", [cheaperId]);
+    await actor(staff);
+    await expect(db.query("select review_change($1,true,575000)", [cheaperId])).rejects.toThrow(
+      /refund/,
+    );
+    await db.query(
+      "select record_payment($1,425000,'refund','cash','rental-refund',gen_random_uuid())",
+      [rentalId],
+    );
+    const reduced = await db.query<{ payment_state: string }>(
+      "select * from review_change($1,true,575000)",
+      [cheaperId],
+    );
+    expect(reduced.rows[0]!.payment_state).toBe("paid");
+    await expect(db.query("select * from preview_hourly_change($1)", [changeId])).rejects.toThrow(
+      /permission/,
+    );
   });
   it("expires pending requests and frees resources", async () => {
     await db.exec("reset role;");
@@ -316,6 +406,115 @@ describe("database-backed booking platform", () => {
     );
     await actor(staff);
     await db.query("select transition_booking($1,'cancelled')", [withExtra.rows[0]!.id]);
+  });
+  it("rejects payment overages, mismatched retries and over-refunds without altering the ledger", async () => {
+    await actor(alice);
+    const at = new Date(new Date(start).getTime() + 28 * 86400000).toISOString();
+    const id = (await reserve(at, "20000000-0000-0000-0000-000000000061")).rows[0]!.id;
+    await actor(staff);
+    const paymentKey = "30000000-0000-0000-0000-000000000061";
+    await db.query("select record_payment($1,200000,'payment','cash','partial-receipt',$2)", [
+      id,
+      paymentKey,
+    ]);
+    await db.query("select record_payment($1,200000,'payment','cash','partial-receipt',$2)", [
+      id,
+      paymentKey,
+    ]);
+    for (const [amount, kind, method, reference, key] of [
+      [200000, "payment", "card", "partial-receipt", paymentKey],
+      [200000, "payment", "cash", "different-receipt", paymentKey],
+      [375001, "payment", "cash", "overpayment", "30000000-0000-0000-0000-000000000062"],
+      [200001, "refund", "cash", "over-refund", "30000000-0000-0000-0000-000000000063"],
+    ])
+      await expect(
+        db.query("select record_payment($1,$2,$3,$4,$5,$6)", [
+          id,
+          amount,
+          kind,
+          method,
+          reference,
+          key,
+        ]),
+      ).rejects.toThrow();
+    expect((await db.query("select * from payments where booking_id=$1", [id])).rows).toHaveLength(
+      1,
+    );
+    expect(
+      Number(
+        (
+          await db.query<{ paid_minor: number }>("select paid_minor from bookings where id=$1", [
+            id,
+          ])
+        ).rows[0]!.paid_minor,
+      ),
+    ).toBe(200000);
+    await db.query(
+      "select record_payment($1,375000,'payment','cash','remaining-receipt',gen_random_uuid())",
+      [id],
+    );
+    await db.query("select transition_booking($1,'cancelled')", [id]);
+    await db.query(
+      "select record_payment($1,575000,'refund','cash','full-refund',gen_random_uuid())",
+      [id],
+    );
+    const final = (
+      await db.query<{ paid_minor: number; payment_state: string }>(
+        "select paid_minor,payment_state from bookings where id=$1",
+        [id],
+      )
+    ).rows[0]!;
+    expect(Number(final.paid_minor)).toBe(0);
+    expect(final.payment_state).toBe("refunded");
+  });
+  it("keeps staff notes private and audits rejection, no-show and completed bookings", async () => {
+    await actor(alice);
+    const at = new Date(new Date(start).getTime() + 35 * 86400000).toISOString();
+    const rejected = (await reserve(at, "20000000-0000-0000-0000-000000000071")).rows[0]!.id;
+    await actor(staff);
+    await db.query("select add_note($1,'Private staff test note')", [rejected]);
+    await db.query("select transition_booking($1,'cancelled')", [rejected]);
+    await actor(alice);
+    expect(
+      (await db.query("select * from internal_notes where booking_id=$1", [rejected])).rows,
+    ).toHaveLength(0);
+    await expect(
+      db.query("select add_note($1,'Customer note denied')", [rejected]),
+    ).rejects.toThrow(/Staff access/);
+    const noShow = (await reserve(at, "20000000-0000-0000-0000-000000000072")).rows[0]!.id;
+    await actor(staff);
+    await db.query("select transition_booking($1,'confirmed')", [noShow]);
+    await expect(db.query("select transition_booking($1,'no_show')", [noShow])).rejects.toThrow(
+      /not started/,
+    );
+    await db.exec("reset role");
+    await db.query(
+      "update bookings set starts_at=now()-interval '2 hours',ends_at=now()-interval '1 hour' where id=$1",
+      [noShow],
+    );
+    await actor(staff);
+    await db.query("select transition_booking($1,'no_show')", [noShow]);
+    await expect(db.query("select transition_booking($1,'checked_in')", [noShow])).rejects.toThrow(
+      /Invalid booking transition/,
+    );
+    expect(
+      (
+        await db.query("select * from allocations where booking_id=any($1::uuid[])", [
+          [rejected, noShow],
+        ])
+      ).rows,
+    ).toHaveLength(0);
+    const audit = (
+      await db.query<{ action: string; actor_id: string }>(
+        "select action,actor_id from audit_events where booking_id=any($1::uuid[]) and action in ('cancelled','no_show')",
+        [[rejected, noShow]],
+      )
+    ).rows;
+    expect(audit.map((x) => x.action).sort()).toEqual(["cancelled", "no_show"]);
+    expect(audit.every((x) => x.actor_id === staff)).toBe(true);
+    expect(
+      (await db.query("select * from internal_notes where booking_id=$1", [rejected])).rows,
+    ).toHaveLength(1);
   });
   it("requires policy version increments and records configuration changes", async () => {
     await actor(staff);

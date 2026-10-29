@@ -60,7 +60,11 @@ Use the operations list or calendar grouped by date, with filters for customer/r
 
 Partial payments leave a balance. Cancelling never refunds money automatically. Record an actual refund separately and retain the external receipt/reference. The ledger and audit trail record actor and time.
 
-For changes, review the computed new price and any refund required before approval. Original allocations remain until a reschedule succeeds; conflicts roll the transaction back. Long-rental rescheduling currently uses a replacement staff-reviewed quote; customer self-service changes for quoted rentals support cancellation only.
+Payment retries must keep the same booking, amount, transaction kind, method and receipt/reference. A changed detail is rejected rather than treated as the original transaction. Staff-operation verification and its test limits are recorded in [STAFF-OPERATIONS-VERIFICATION.md](STAFF-OPERATIONS-VERIFICATION.md).
+
+For hourly changes, review the computed new price and any refund required before approval. Original allocations remain until a reschedule succeeds; conflicts roll the transaction back.
+
+For quoted long rentals, customers request new start/end dates from My bookings. Staff enter the revised subtotal in JMD before tax, including every retained extra. The server adds tax; customers must accept the displayed revised total before staff can approve. Editing the offer resets acceptance. Record any required refund before reducing the total below the paid balance. Approval rechecks eligibility, closures, extras and resource availability, moves allocations atomically, preserves quote provenance and records the revised price in the audit trail. The original reservation stays active until approval succeeds. Offers do not hold the requested new dates. Customer acceptance is recorded in the app; email delivery remains a separate setup task.
 
 Guests may submit enquiries. To offer an account quote, link a verified account matching the enquiry email; otherwise ask the customer to create/verify an account. Quotes have versions and expiry, do not hold inventory, and require policy acceptance. Acceptance rechecks availability and creates a pending pay-in-person reservation.
 

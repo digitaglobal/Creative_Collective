@@ -128,7 +128,7 @@ function Operations() {
         </label>
         <label>
           Brand
-          <select value={brand} onChange={(e) => setBrand(e.target.value)}>
+          <select aria-label="Brand" value={brand} onChange={(e) => setBrand(e.target.value)}>
             <option value="">All</option>
             <option>enigma</option>
             <option>studio-d</option>
@@ -136,7 +136,7 @@ function Operations() {
         </label>
         <label>
           Status
-          <select value={state} onChange={(e) => setState(e.target.value)}>
+          <select aria-label="Status" value={state} onChange={(e) => setState(e.target.value)}>
             <option value="">All</option>
             {[
               "pending_confirmation",
@@ -154,7 +154,7 @@ function Operations() {
         </label>
         <label>
           Payment
-          <select value={payment} onChange={(e) => setPayment(e.target.value)}>
+          <select aria-label="Payment" value={payment} onChange={(e) => setPayment(e.target.value)}>
             <option value="">All</option>
             {["unpaid", "paid", "pending", "failed", "refunded"].map((s) => (
               <option key={s}>{s}</option>
@@ -163,7 +163,11 @@ function Operations() {
         </label>
         <label>
           Resource
-          <select value={resource} onChange={(e) => setResource(e.target.value)}>
+          <select
+            aria-label="Resource"
+            value={resource}
+            onChange={(e) => setResource(e.target.value)}
+          >
             <option value="">All</option>
             {data.data?.resources.map((r) => (
               <option key={r.id} value={r.id}>
@@ -276,8 +280,8 @@ function Operations() {
                   </p>
                   <ChangePreview id={c.id} busy={busy} />
                   <p className="text-sm">
-                    The server checks current rates and returns the correct total if it changed.
-                    Refund any excess paid balance before approval.
+                    Hourly bookings use current rates. Quoted rentals need an offer accepted by the
+                    customer. Refund any excess paid balance before approval.
                   </p>
                 </>
               )}
@@ -537,6 +541,7 @@ function StaffBooking({
   busy: boolean;
 }) {
   const [key, setKey] = useState(() => crypto.randomUUID());
+  const [transactionError, setTransactionError] = useState("");
   const detail = useQuery({
     queryKey: ["staff-detail", b.id],
     queryFn: async () => {
@@ -573,7 +578,8 @@ function StaffBooking({
         {b.service_name} · {b.starts_at}–{b.ends_at}
       </p>
       <p>
-        Total {formatMoney(b.total_minor)} ? Balance {formatMoney(b.total_minor - b.paid_minor)}
+        Total {formatMoney(b.total_minor)} · Paid {formatMoney(b.paid_minor)} · Balance{" "}
+        {formatMoney(b.total_minor - b.paid_minor)}
       </p>
       <div className="flex flex-wrap gap-2">
         {transitions.map((s) => (
@@ -591,21 +597,28 @@ function StaffBooking({
         onSubmit={async (e) => {
           e.preventDefault();
           const f = new FormData(e.currentTarget);
-          const saved = await run("record_payment", {
-            p_id: b.id,
-            p_amount: parseMoneyMinor(String(f.get("amount"))),
-            p_kind: f.get("kind"),
-            p_method: f.get("method"),
-            p_reference: f.get("reference"),
-            p_key: key,
-          });
-          if (saved) setKey(crypto.randomUUID());
+          setTransactionError("");
+          try {
+            const saved = await run("record_payment", {
+              p_id: b.id,
+              p_amount: parseMoneyMinor(String(f.get("amount"))),
+              p_kind: f.get("kind"),
+              p_method: f.get("method"),
+              p_reference: f.get("reference"),
+              p_key: key,
+            });
+            if (saved) setKey(crypto.randomUUID());
+          } catch (err) {
+            setTransactionError(
+              err instanceof Error ? err.message : "Check the transaction amount.",
+            );
+          }
         }}
       >
         <h3 className="font-semibold">Manual payment or refund</h3>
         <label>
           Kind
-          <select name="kind">
+          <select name="kind" aria-label="Kind">
             <option value="payment">Payment</option>
             <option value="refund">Refund</option>
           </select>
@@ -628,6 +641,7 @@ function StaffBooking({
           </label>
         ))}
         <Button disabled={busy}>Record transaction</Button>
+        {transactionError && <p role="alert">{transactionError}</p>}
       </form>
       <form
         onSubmit={(e) => {
@@ -670,21 +684,81 @@ function StaffBooking({
 }
 
 function ChangePreview({ id, busy }: { id: string; busy: boolean }) {
+  const qc = useQueryClient();
+  const [subtotal, setSubtotal] = useState("");
+  const [offering, setOffering] = useState(false);
+  const [offerError, setOfferError] = useState("");
   const q = useQuery({
     queryKey: ["change-preview", id],
     queryFn: () =>
-      rpc<{ totalMinor: number; differenceMinor: number; refundRequiredMinor: number }>(
-        "preview_change",
-        { p_id: id },
-      ),
+      rpc<{
+        totalMinor: number | null;
+        differenceMinor: number;
+        refundRequiredMinor: number;
+        requiresOffer?: boolean;
+        accepted?: boolean;
+      }>("preview_change", { p_id: id }),
   });
   return (
     <div>
       {q.isLoading && <p>Calculating revised price…</p>}
       {q.error && <p role="alert">{q.error.message}</p>}
+      {q.data?.requiresOffer && (
+        <div className="space-y-2">
+          <label className="block">
+            Revised rental subtotal (JMD, before tax, including all extras)
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={subtotal}
+              onChange={(e) => setSubtotal(e.target.value)}
+              className="ml-2 rounded border bg-background p-2"
+            />
+          </label>
+          <Button
+            type="button"
+            disabled={busy || offering || subtotal === ""}
+            onClick={async () => {
+              setOffering(true);
+              setOfferError("");
+              try {
+                await rpc("offer_rental_change", {
+                  p_id: id,
+                  p_subtotal: parseMoneyMinor(subtotal),
+                });
+                await qc.invalidateQueries({ queryKey: ["change-preview", id] });
+              } catch (err) {
+                setOfferError(err instanceof Error ? err.message : "Unable to offer revised price");
+              } finally {
+                setOffering(false);
+              }
+            }}
+          >
+            Offer revised price
+          </Button>
+          <p>
+            {q.data.accepted
+              ? "Customer accepted this price."
+              : "Awaiting customer acceptance of the revised price."}
+          </p>
+          {offerError && <p role="alert">{offerError}</p>}
+        </div>
+      )}
       <input type="hidden" name="total" value={q.data?.totalMinor ?? ""} />
-      <Button disabled={busy || !q.data || !!q.error}>Approve reschedule</Button>
-      {q.data && (
+      <Button
+        disabled={
+          busy ||
+          !q.data ||
+          !!q.error ||
+          (q.data.requiresOffer && !q.data.accepted) ||
+          q.data.totalMinor == null ||
+          q.data.refundRequiredMinor > 0
+        }
+      >
+        Approve reschedule
+      </Button>
+      {q.data && q.data.totalMinor != null && (
         <p>
           New total: {formatMoney(q.data.totalMinor)}. Difference:{" "}
           {formatMoney(q.data.differenceMinor)}. Refund required before approval:{" "}

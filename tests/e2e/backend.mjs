@@ -46,6 +46,12 @@ update settings set launch_approved=true,tax_basis_points=1500;
 update policies set approved=true;
 update resources set approved=true;
 update services set approved=true;`);
+// Past confirmed fixture exercises the no-show screen without changing the clock.
+await db.query(
+  `insert into bookings(id,reference,customer_id,customer_email,customer_name,service_id,service_name,brand,starts_at,ends_at,attendees,total_minor,price_snapshot,booking_state,policy_snapshot,idempotency_key)
+ values('40000000-0000-0000-0000-000000000001','CC-TEST-NOSHOW',$1,'customer@example.invalid','Test Customer','svc-enigma-meeting','Meeting room','enigma',now()-interval '2 days',now()-interval '2 days'+interval '1 hour',1,575000,'{"lines":[],"currency":"JMD"}','confirmed','{}','40000000-0000-0000-0000-000000000002')`,
+  [accounts[0].id],
+);
 const users = accounts.map((a) => ({
   id: a.id,
   email: a.email,

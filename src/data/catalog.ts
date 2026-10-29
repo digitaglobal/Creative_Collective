@@ -16,6 +16,7 @@ export const VENUE_TIMEZONE_LABEL = "Jamaica time (America/Jamaica)";
 export type BrandSlug = "enigma" | "studio-d";
 
 export interface Brand {
+  openingHours?: Record<string, { open: string; close: string } | null>;
   slug: BrandSlug;
   name: string;
   tagline: string;
@@ -30,6 +31,15 @@ export interface Brand {
 export const brands: Brand[] = [
   {
     slug: "enigma",
+    openingHours: {
+      monday: { open: "08:00", close: "17:00" },
+      tuesday: { open: "08:00", close: "17:00" },
+      wednesday: { open: "08:00", close: "17:00" },
+      thursday: { open: "08:00", close: "17:00" },
+      friday: { open: "08:00", close: "16:00" },
+      saturday: null,
+      sunday: null,
+    },
     name: "Enigma",
     tagline: "Workspace, meeting rooms and a recording booth",
     description: "Desks, a meeting room and a recording booth for focused work and short sessions.",
@@ -110,6 +120,33 @@ export interface Service {
 
 /** Minor units: 500000 = JMD 5,000.00 */
 export const services: Service[] = [
+  {
+    id: "svc-enigma-hot-desk",
+    slug: "hot-desk",
+    brand: "enigma",
+    name: "Hot desk — The Sandbox",
+    useCase: "Flexible individual workspace",
+    description:
+      "Single hot desk in The Sandbox. Inventory and reservation rules await confirmation.",
+    resourceIds: [],
+    maxAttendees: 1,
+    hourlyRateMinor: 100000,
+    publishedPrices: [
+      { label: "Hourly", amountMinor: 100000 },
+      { label: "Daily", amountMinor: 500000 },
+      { label: "Weekly", amountMinor: 1500000 },
+      { label: "Monthly", amountMinor: 3750000 },
+    ],
+    bookableHourly: false,
+    minDurationMinutes: 60,
+    maxDurationMinutes: 480,
+    stepMinutes: 30,
+    status: "published",
+    content: { included: ["Single hot desk"], "not-included": ["Tax"], bring: [] },
+    facilitiesStatus: "Inventory, accessibility and booking duration rules pending confirmation",
+    addons: [],
+    imageAlt: "Enigma Sandbox hot desk",
+  },
   {
     id: "svc-enigma-meeting",
     slug: "meeting-room",
@@ -635,13 +672,14 @@ export const services: Service[] = [
     brand: "studio-d",
     name: "Studio Lounge (space only)",
     useCase: "Lounge rental for creative sessions",
-    description: "Space-only lounge rental. The published daily rate is listed for reference.",
+    description:
+      "Space-only lounge rental. The published daily rate covers 12 hours and is listed for reference.",
     resourceIds: ["res-studio-main"],
     maxAttendees: 10,
     hourlyRateMinor: null,
     publishedPrices: [
       { label: "Hourly", amountMinor: 500000 },
-      { label: "Daily", amountMinor: 2500000 },
+      { label: "Daily (12 hours)", amountMinor: 2500000 },
     ],
     bookableHourly: false,
     minDurationMinutes: 60,
