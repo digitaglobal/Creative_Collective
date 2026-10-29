@@ -391,7 +391,7 @@ function Operations() {
           !data.data.changes.some((c) => c.state === "pending") &&
           !data.data.jobs.some((j) => j.state === "failed") && (
             <p className="text-sm text-muted-foreground">
-              You - re all caught up. No booking actions are waiting.
+              You are all caught up. No booking actions are waiting.
             </p>
           )}
         {data.data?.bookings
@@ -982,7 +982,7 @@ function StaffBooking({
         </p>
         <Button disabled={busy || !note.trim()}>Add note</Button>
       </form>
-      {detail.isLoading && <p role="status">Loading booking history - </p>}
+      {detail.isLoading && <p role="status">Loading booking history...</p>}
       {detail.error && (
         <p role="alert">
           Could not load booking history.{" "}
