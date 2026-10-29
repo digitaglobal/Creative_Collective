@@ -1,5 +1,13 @@
 # Staging deployment checkpoint — 29 October 2026
 
+## Deployment security fix
+
+The initial GitHub deployment was blocked by Vercel because the previous lockfile resolved `@tanstack/start-server-core@1.169.17`, affected by CVE-2026-102989 / [GHSA-qx66-fv34-fjm8](https://github.com/TanStack/router/security/advisories/GHSA-qx66-fv34-fjm8). Updated TanStack Start to `1.169.4`, React Router to `1.170.46`, and Router Plugin to `1.168.48`; both npm and Bun lockfiles now resolve server core to `1.169.45` (patched minimum: `1.169.39`). The root error component now uses the framework's `ErrorComponentProps` type.
+
+Verification: TypeScript, 18 database/unit tests, all five browser scenarios, lint (six existing Fast Refresh warnings), npm lockfile dry run, and the Node 24 Vercel build pass. No security-bypass environment variable is needed. Redeploy the new commit rather than retrying the old vulnerable commit.
+
+The source is now published at `https://github.com/digitaglobal/Creative_Collective` on `main`; the owner connected that repository to Vercel manually. The account-connection section below records the earlier preparation checkpoint.
+
 The latest source builds successfully for Vercel with Node 24:
 
 ```powershell
