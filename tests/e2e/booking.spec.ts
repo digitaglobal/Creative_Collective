@@ -365,16 +365,52 @@ test("customer enquiry becomes a reviewed quote and a saved reservation", async 
   await expect(staff.getByText("Saved.", { exact: true })).toBeVisible();
   await page.goto("/account/bookings");
   const quote = page.locator("form").filter({ hasText: "Pay on arrival e2e" });
-  await quote
+  await expect(quote.getByText("Awaiting your decision", { exact: true })).toBeVisible();
+  await expect(quote.getByText("Tax (15%)", { exact: true })).toBeVisible();
+  await expect(quote.getByText("JMD 13,800.00", { exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await quote.scrollIntoViewIfNeeded();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: ".cache/quote-review-mobile.png" });
+  await page.getByText("Request a revision", { exact: true }).click();
+  await page
+    .getByLabel("Requested changes", { exact: true })
+    .fill("Please confirm microphone availability and revise the instructions.");
+  await page.getByRole("button", { name: "Send revision request", exact: true }).click();
+  await expect(page.getByText("Revision requested", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Accept quote and request reservation", exact: true }),
+  ).toHaveCount(0);
+  await staff.reload();
+  await expect(
+    form.getByText("Please confirm microphone availability and revise the instructions.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await form.getByLabel("start", { exact: true }).fill(day + "T15:00");
+  await form.getByLabel("end", { exact: true }).fill(day + "T17:00");
+  await form
+    .getByLabel("expiry", { exact: true })
+    .fill(new Date(Date.now() - 4 * 3600_000).toISOString().slice(0, 16));
+  await form.getByLabel("Charge description").fill("Revised studio rental");
+  await form.getByLabel("Amount (JMD)", { exact: true }).fill("12000");
+  await form
+    .getByLabel("Payment and arrival instructions")
+    .fill("Revised arrival instructions e2e");
+  await form.getByRole("button", { name: "Offer quote", exact: true }).click();
+  await expect(staff.getByText("Saved.", { exact: true })).toBeVisible();
+  await page.reload();
+  const revisedQuote = page.locator("form").filter({ hasText: "Revised arrival instructions e2e" });
+  await revisedQuote
     .getByRole("checkbox", { name: "I accept the current policies.", exact: true })
     .check();
-  await quote
+  await revisedQuote
     .getByRole("button", { name: "Accept quote and request reservation", exact: true })
     .click();
   await expect(
     page.getByText("Quote accepted. Reservation awaits staff approval.", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByRole("heading", { name: /Studio rental/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Studio rental/, level: 2 })).toBeVisible();
   const bookingCard = page.locator("article").filter({ hasText: "Studio rental" });
   await bookingCard.getByLabel("Change type").selectOption("reschedule");
   const movedDay = new Date(date.getTime() + 7 * 86400000).toISOString().slice(0, 10);

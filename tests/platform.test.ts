@@ -239,11 +239,49 @@ describe("database-backed booking platform", () => {
       'select * from create_quote($1,$2,$3,\'[{"label":"Long rental","amountMinor":1000000}]\',$4,\'Pay on arrival\')',
       [id, qs, qe, expiry],
     );
-    const second = await db.query<{ id: string; version: number }>(
+    let second = await db.query<{ id: string; version: number }>(
       'select * from create_quote($1,$2,$3,\'[{"label":"Long rental","amountMinor":1000000}]\',$4,\'Pay on arrival\')',
       [id, qs, qe, expiry],
     );
     expect(second.rows[0]!.version).toBe(2);
+    const revisionQuote = second.rows[0]!.id;
+    await actor(bob);
+    await expect(
+      db.query("select request_quote_revision($1,'Please change the equipment list')", [
+        revisionQuote,
+      ]),
+    ).rejects.toThrow(/unavailable/);
+    await actor(alice);
+    await db.query("select request_quote_revision($1,'Please change the equipment list')", [
+      revisionQuote,
+    ]);
+    await db.query("select request_quote_revision($1,'Please change the equipment list')", [
+      revisionQuote,
+    ]);
+    expect(
+      (await db.query("select * from quote_revisions where quote_id=$1", [revisionQuote])).rows,
+    ).toHaveLength(1);
+    await expect(db.query("select accept_quote($1,$2)", [revisionQuote, policies])).rejects.toThrow(
+      /superseded/,
+    );
+    await expect(
+      db.query("select request_quote_revision($1,'A different request should fail')", [
+        revisionQuote,
+      ]),
+    ).rejects.toThrow(/already exists/);
+    await actor(bob);
+    expect(
+      (await db.query("select * from quote_revisions where quote_id=$1", [revisionQuote])).rows,
+    ).toHaveLength(0);
+    await actor(staff);
+    expect(
+      (await db.query("select * from quote_revisions where quote_id=$1", [revisionQuote])).rows,
+    ).toHaveLength(1);
+    second = await db.query<{ id: string; version: number }>(
+      'select * from create_quote($1,$2,$3,\'[{"label":"Revised rental","amountMinor":1000000}]\',$4,\'Pay on arrival\')',
+      [id, qs, qe, expiry],
+    );
+    expect(second.rows[0]!.version).toBe(3);
     expect(
       (
         await db.query("select * from allocations where occupied && tstzrange($1,$2,'[)')", [
@@ -261,6 +299,11 @@ describe("database-backed booking platform", () => {
       [second.rows[0]!.id, policies],
     );
     expect(Number(accepted.rows[0]!.total_minor)).toBe(1150000);
+    await expect(
+      db.query("select request_quote_revision($1,'Change an already accepted quote')", [
+        second.rows[0]!.id,
+      ]),
+    ).rejects.toThrow(/unaccepted/);
     expect(
       (
         await db.query<{ id: string }>("select * from accept_quote($1,$2)", [

@@ -1,4 +1,4 @@
-import { useCatalog } from "@/hooks/use-catalog";
+import { QuoteReviews } from "@/components/quote-review";
 import { MyEnquiries } from "@/components/my-enquiries";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
@@ -8,13 +8,7 @@ import { AccessGate } from "@/components/access-gate";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { db, rpc } from "@/lib/supabase";
-import {
-  downloadCalendar,
-  venueTime,
-  type Booking,
-  type Payment,
-  type Policy,
-} from "@/lib/booking";
+import { downloadCalendar, venueTime, type Booking, type Payment } from "@/lib/booking";
 import { formatMoney } from "@/lib/format";
 export const Route = createFileRoute("/account/bookings")({
   head: () => ({ meta: [{ name: "robots", content: "noindex" }] }),
@@ -32,7 +26,6 @@ function Account() {
   );
 }
 function Bookings() {
-  const catalog = useCatalog();
   const auth = useAuth();
   const qc = useQueryClient();
   const [message, setMessage] = useState("");
@@ -59,23 +52,6 @@ function Bookings() {
         .select("full_name,phone")
         .eq("id", auth.user!.id)
         .single();
-      if (error) throw error;
-      return data;
-    },
-  });
-  const policies = useQuery({
-    queryKey: ["policies"],
-    queryFn: () => rpc<Policy[]>("public_policies"),
-  });
-  const quotes = useQuery({
-    queryKey: ["my-quotes", auth.user?.id],
-    enabled: !!auth.user,
-    queryFn: async () => {
-      const { data, error } = await db()
-        .from("quotes")
-        .select("*")
-        .eq("customer_id", auth.user!.id)
-        .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -165,77 +141,11 @@ function Bookings() {
         ))}
       {!q.isLoading && !q.data?.length && <p>No reservations yet.</p>}
       <MyEnquiries />
-      <h2 id="rental-quotes" className="scroll-mt-40 text-xl font-semibold">
-        Rental quotes
-      </h2>
-      {quotes.error && <p role="alert">{quotes.error.message}</p>}
-      {quotes.data?.map((qt) => (
-        <form
-          key={qt.id}
-          className="surface-panel space-y-3 p-5"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            const f = new FormData(e.currentTarget);
-            setMessage("");
-            try {
-              await rpc("accept_quote", {
-                p_id: qt.id,
-                p_service_ack: f.get("ack") === "on",
-                p_policy_versions: Object.fromEntries(
-                  (policies.data ?? []).map((p) => [p.id, p.version]),
-                ),
-              });
-              await qc.invalidateQueries();
-              setMessage("Quote accepted. Reservation awaits staff approval.");
-            } catch (err) {
-              setMessage(err instanceof Error ? err.message : "Unable to accept quote");
-            }
-          }}
-        >
-          <p>
-            Quote v{qt.version}: {formatMoney(qt.total_minor)} · {qt.state}
-          </p>
-          <p>
-            {qt.starts_at} to {qt.ends_at}
-          </p>
-          {qt.lines.map((l: { label: string; amountMinor: number }, i: number) => (
-            <p key={i}>
-              {l.label}: {formatMoney(l.amountMinor)}
-            </p>
-          ))}
-          <p>{qt.instructions}</p>
-          <p>Expires {qt.expires_at}. Quotes do not reserve space.</p>
-          {qt.state === "offered" && (
-            <>
-              <div>
-                {policies.data?.map((p) => (
-                  <details key={p.id}>
-                    <summary>{p.title}</summary>
-                    <p className="whitespace-pre-wrap">{p.body}</p>
-                  </details>
-                ))}
-              </div>
-              {catalog.data?.services.find((s) => s.id === qt.service_id)?.acknowledgement && (
-                <label className="flex gap-2">
-                  <input type="checkbox" name="ack" required />
-                  {catalog.data.services.find((s) => s.id === qt.service_id)?.acknowledgement}
-                </label>
-              )}
-              <label className="flex gap-2">
-                <input type="checkbox" required />I accept the current policies.
-              </label>
-              <Button
-                disabled={policies.data?.length !== 7 || new Date(qt.expires_at) <= new Date()}
-              >
-                Accept quote and request reservation
-              </Button>
-            </>
-          )}
-        </form>
-      ))}
+      <QuoteReviews />
     </div>
   );
 }
+
 function BookingCard({ booking: b }: { booking: Booking }) {
   const qc = useQueryClient();
   const [message, setMessage] = useState("");

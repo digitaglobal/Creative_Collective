@@ -58,6 +58,7 @@ function Operations() {
         "allocations",
         "resources",
         "quotes",
+        "quote_revisions",
       ] as const;
       const results = await Promise.all(tables.map((t) => db().from(t).select("*")));
       results.forEach((r) => {
@@ -71,6 +72,7 @@ function Operations() {
         allocations: results[4]!.data!,
         resources: results[5]!.data!,
         quotes: results[6]!.data!,
+        revisions: results[7]!.data!,
       };
     },
     refetchInterval: 30_000,
@@ -411,6 +413,23 @@ function Operations() {
                 {e.start_date}–{e.end_date} · {e.rental_period} · {e.attendees} attendees
               </p>
               <p>{e.message}</p>
+              {data.data?.revisions
+                .filter((revision) => revision.enquiry_id === e.id)
+                .map((revision) => (
+                  <div key={revision.quote_id} className="rounded border bg-muted p-3">
+                    <p className="font-semibold">
+                      Customer revision request · Quote v
+                      {data.data?.quotes.find((quote) => quote.id === revision.quote_id)?.version}
+                    </p>
+                    <p className="whitespace-pre-wrap break-words">{revision.message}</p>
+                    <p className="text-xs">
+                      {new Date(revision.created_at).toLocaleString("en-GB", {
+                        timeZone: "America/Jamaica",
+                      })}{" "}
+                      Jamaica time. Review against any newer quote before preparing another version.
+                    </p>
+                  </div>
+                ))}
               <label>
                 Enquiry state
                 <select

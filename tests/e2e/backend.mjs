@@ -180,6 +180,7 @@ createServer((request, response) => {
           "payments",
           "change_requests",
           "quotes",
+          "quote_revisions",
           "enquiries",
           "notification_jobs",
           "allocations",
