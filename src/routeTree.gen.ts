@@ -16,6 +16,7 @@ import { Route as ConfirmationRouteImport } from './routes/confirmation'
 import { Route as HelpRouteImport } from './routes/help'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PoliciesRouteImport } from './routes/policies'
+import { Route as SpacesRouteImport } from './routes/spaces'
 import { Route as BrandIndexRouteImport } from './routes/$brand.index'
 import { Route as AccountBookingsRouteImport } from './routes/account.bookings'
 import { Route as BrandServicesSlugRouteImport } from './routes/$brand.services.$slug'
@@ -55,6 +56,11 @@ const PoliciesRoute = PoliciesRouteImport.update({
   path: '/policies',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SpacesRoute = SpacesRouteImport.update({
+  id: '/spaces',
+  path: '/spaces',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BrandIndexRoute = BrandIndexRouteImport.update({
   id: '/$brand/',
   path: '/$brand/',
@@ -79,6 +85,7 @@ export interface FileRoutesByFullPath {
   '/help': typeof HelpRoute
   '/login': typeof LoginRoute
   '/policies': typeof PoliciesRoute
+  '/spaces': typeof SpacesRoute
   '/account/bookings': typeof AccountBookingsRoute
   '/$brand/': typeof BrandIndexRoute
   '/$brand/services/$slug': typeof BrandServicesSlugRoute
@@ -91,6 +98,7 @@ export interface FileRoutesByTo {
   '/help': typeof HelpRoute
   '/login': typeof LoginRoute
   '/policies': typeof PoliciesRoute
+  '/spaces': typeof SpacesRoute
   '/account/bookings': typeof AccountBookingsRoute
   '/$brand': typeof BrandIndexRoute
   '/$brand/services/$slug': typeof BrandServicesSlugRoute
@@ -104,6 +112,7 @@ export interface FileRoutesById {
   '/help': typeof HelpRoute
   '/login': typeof LoginRoute
   '/policies': typeof PoliciesRoute
+  '/spaces': typeof SpacesRoute
   '/account/bookings': typeof AccountBookingsRoute
   '/$brand/': typeof BrandIndexRoute
   '/$brand/services/$slug': typeof BrandServicesSlugRoute
@@ -118,6 +127,7 @@ export interface FileRouteTypes {
     | '/help'
     | '/login'
     | '/policies'
+    | '/spaces'
     | '/account/bookings'
     | '/$brand/'
     | '/$brand/services/$slug'
@@ -130,6 +140,7 @@ export interface FileRouteTypes {
     | '/help'
     | '/login'
     | '/policies'
+    | '/spaces'
     | '/account/bookings'
     | '/$brand'
     | '/$brand/services/$slug'
@@ -142,6 +153,7 @@ export interface FileRouteTypes {
     | '/help'
     | '/login'
     | '/policies'
+    | '/spaces'
     | '/account/bookings'
     | '/$brand/'
     | '/$brand/services/$slug'
@@ -155,6 +167,7 @@ export interface RootRouteChildren {
   HelpRoute: typeof HelpRoute
   LoginRoute: typeof LoginRoute
   PoliciesRoute: typeof PoliciesRoute
+  SpacesRoute: typeof SpacesRoute
   AccountBookingsRoute: typeof AccountBookingsRoute
   BrandIndexRoute: typeof BrandIndexRoute
   BrandServicesSlugRoute: typeof BrandServicesSlugRoute
@@ -211,6 +224,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PoliciesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/spaces': {
+      id: '/spaces'
+      path: '/spaces'
+      fullPath: '/spaces'
+      preLoaderRoute: typeof SpacesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$brand/': {
       id: '/$brand/'
       path: '/$brand'
@@ -243,6 +263,7 @@ const rootRouteChildren: RootRouteChildren = {
   HelpRoute: HelpRoute,
   LoginRoute: LoginRoute,
   PoliciesRoute: PoliciesRoute,
+  SpacesRoute: SpacesRoute,
   AccountBookingsRoute: AccountBookingsRoute,
   BrandIndexRoute: BrandIndexRoute,
   BrandServicesSlugRoute: BrandServicesSlugRoute,

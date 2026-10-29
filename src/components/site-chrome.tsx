@@ -32,6 +32,9 @@ export function SiteHeader() {
           <span className="text-base font-extrabold">Creative Collective</span>
         </Link>
         <nav aria-label="Brands" className="ml-4 hidden gap-1 md:flex">
+          <Link to="/spaces" className="rounded-md px-3 py-2 text-sm hover:bg-muted">
+            Find a space
+          </Link>
           {liveBrands.map((b) => (
             <Link
               key={b.slug}
@@ -71,6 +74,9 @@ export function SiteHeader() {
         </div>
       </div>
       <nav aria-label="Mobile brands" className="flex gap-4 px-4 pb-3 md:hidden">
+        <Link to="/spaces" className="text-sm underline">
+          Find a space
+        </Link>
         {liveBrands.map((b) => (
           <Link key={b.slug} to="/$brand" params={{ brand: b.slug }} className="text-sm underline">
             {b.name}

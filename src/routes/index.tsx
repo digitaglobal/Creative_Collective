@@ -49,6 +49,11 @@ function Home() {
             <span className="size-2 rounded-full bg-primary" />
             Book your space in {VENUE_TIMEZONE_LABEL}
           </div>
+          <Button asChild className="mt-6 w-fit">
+            <Link to="/spaces">
+              Find and compare spaces <ArrowRight className="size-4" />
+            </Link>
+          </Button>
         </div>
         <div className="relative min-h-64 overflow-hidden rounded-lg bg-foreground p-7 text-background sm:min-h-80 sm:p-10">
           <div
