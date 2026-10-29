@@ -1,4 +1,5 @@
 import { useCatalog } from "@/hooks/use-catalog";
+import { MyEnquiries } from "@/components/my-enquiries";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -82,6 +83,14 @@ function Bookings() {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-semibold">My bookings</h1>
+      <nav aria-label="Account sections" className="flex flex-wrap gap-4">
+        <a href="#enquiries" className="underline">
+          My enquiries
+        </a>
+        <a href="#rental-quotes" className="underline">
+          Rental quotes
+        </a>
+      </nav>
       <p>{auth.user?.email}</p>
       <form
         key={profile.data?.full_name}
@@ -155,7 +164,10 @@ function Bookings() {
           <BookingCard key={b.id} booking={b} />
         ))}
       {!q.isLoading && !q.data?.length && <p>No reservations yet.</p>}
-      <h2 className="text-xl font-semibold">Rental quotes</h2>
+      <MyEnquiries />
+      <h2 id="rental-quotes" className="scroll-mt-40 text-xl font-semibold">
+        Rental quotes
+      </h2>
       {quotes.error && <p role="alert">{quotes.error.message}</p>}
       {quotes.data?.map((qt) => (
         <form

@@ -491,7 +491,14 @@ function ServicePage() {
                 </p>
               </>
             )}
-            <EnquiryForm serviceId={service.id} />
+            <EnquiryForm
+              key={service.id}
+              serviceId={service.id}
+              date={date}
+              attendees={attendees}
+              start={start}
+              duration={duration}
+            />
           </aside>
         </div>
       </div>

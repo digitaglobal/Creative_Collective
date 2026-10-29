@@ -13,6 +13,7 @@ import { venueTime, type Booking } from "@/lib/booking";
 import { formatMoney } from "@/lib/format";
 import { AdminConfiguration } from "@/components/admin-configuration";
 import { BookingFunnel } from "@/components/booking-funnel";
+import { enquiryStates } from "@/lib/enquiries";
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ name: "robots", content: "noindex" }] }),
   component: Admin,
@@ -33,6 +34,9 @@ function Operations() {
   const auth = useAuth();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const [enquiryFilter, setEnquiryFilter] = useState("");
+  const [enquirySearch, setEnquirySearch] = useState("");
+  const catalog = useCatalog();
   const [date, setDate] = useState("");
   const [brand, setBrand] = useState("");
   const [state, setState] = useState("");
@@ -318,98 +322,166 @@ function Operations() {
       </section>
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Enquiries and quotes</h2>
-        {data.data?.enquiries.map((e) => (
-          <form
-            key={e.id}
-            className="surface-panel space-y-3 p-5"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const f = new FormData(event.currentTarget);
-              try {
-                void run("create_quote", {
-                  p_enquiry: e.id,
-                  p_start: String(f.get("start")) + ":00-05:00",
-                  p_end: String(f.get("end")) + ":00-05:00",
-                  p_lines: f.getAll("quote_label").map((label, i) => ({
-                    label: String(label),
-                    amountMinor: parseMoneyMinor(String(f.getAll("quote_amount")[i])),
-                  })),
-                  p_expiry: String(f.get("expiry")) + ":00-05:00",
-                  p_instructions: f.get("instructions"),
-                  p_key: f.get("quote_key"),
-                  p_extra_ids: f.getAll("quote_extra"),
-                });
-              } catch {
-                setMessage("Enter a valid quote amount with at most two decimal places.");
-              }
-            }}
-          >
-            <p>
-              {e.contact_name} · {e.email} · {e.phone} · {e.service_id}
-            </p>
-            <p>
-              {e.start_date}–{e.end_date} · {e.rental_period} · {e.attendees} attendees
-            </p>
-            <p>{e.message}</p>
-            <label>
-              Enquiry state
-              <select
-                value={e.state}
-                disabled={busy}
-                onChange={(event) =>
-                  void run("update_enquiry", { p_id: e.id, p_state: event.target.value })
+        <div className="flex flex-wrap gap-4">
+          <label>
+            Filter enquiries
+            <select
+              aria-label="Filter enquiries"
+              value={enquiryFilter}
+              onChange={(event) => setEnquiryFilter(event.target.value)}
+              className="ml-2 rounded border bg-background p-2"
+            >
+              <option value="">All statuses</option>
+              {Object.entries(enquiryStates).map(([value, state]) => (
+                <option key={value} value={value}>
+                  {state.label} ({data.data?.enquiries.filter((e) => e.state === value).length ?? 0}
+                  )
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Search enquiries
+            <input
+              className="ml-2 rounded border bg-background p-2"
+              value={enquirySearch}
+              onChange={(event) => setEnquirySearch(event.target.value)}
+              placeholder="Reference, customer or space"
+            />
+          </label>
+        </div>
+        <p className="text-sm">
+          Newest enquiries first. Preparing a quote does not reserve inventory or send an email.
+        </p>
+        {data.data &&
+          !data.data.enquiries.some(
+            (e) =>
+              (!enquiryFilter || e.state === enquiryFilter) &&
+              `${e.id} ${e.contact_name} ${e.email} ${e.service_id} ${catalog.data?.services.find((s) => s.id === e.service_id)?.name ?? ""}`
+                .toLowerCase()
+                .includes(enquirySearch.toLowerCase().replace(/^enq-/, "")),
+          ) && <p>No enquiries match these filters.</p>}
+        {data.data?.enquiries
+          .filter(
+            (e) =>
+              (!enquiryFilter || e.state === enquiryFilter) &&
+              `${e.id} ${e.contact_name} ${e.email} ${e.service_id} ${catalog.data?.services.find((s) => s.id === e.service_id)?.name ?? ""}`
+                .toLowerCase()
+                .includes(enquirySearch.toLowerCase().replace(/^enq-/, "")),
+          )
+          .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+          .map((e) => (
+            <form
+              key={e.id}
+              className="surface-panel space-y-3 p-5"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const f = new FormData(event.currentTarget);
+                try {
+                  void run("create_quote", {
+                    p_enquiry: e.id,
+                    p_start: String(f.get("start")) + ":00-05:00",
+                    p_end: String(f.get("end")) + ":00-05:00",
+                    p_lines: f.getAll("quote_label").map((label, i) => ({
+                      label: String(label),
+                      amountMinor: parseMoneyMinor(String(f.getAll("quote_amount")[i])),
+                    })),
+                    p_expiry: String(f.get("expiry")) + ":00-05:00",
+                    p_instructions: f.get("instructions"),
+                    p_key: f.get("quote_key"),
+                    p_extra_ids: f.getAll("quote_extra"),
+                  });
+                } catch {
+                  setMessage("Enter a valid quote amount with at most two decimal places.");
                 }
-              >
-                {["new", "reviewing", "quoted", "closed"].map((s) => (
-                  <option key={s}>{s}</option>
-                ))}
-              </select>
-            </label>
-            {!e.customer_id ? (
-              <div>
-                <p>Customer needs a verified account matching the enquiry email.</p>
-                <Button
-                  type="button"
+              }}
+            >
+              <p className="break-all font-semibold">
+                ENQ-{e.id} ·{" "}
+                {enquiryStates[e.state as keyof typeof enquiryStates]?.label ?? e.state}
+              </p>
+              <p>
+                {catalog.data?.services.find((service) => service.id === e.service_id)?.name ??
+                  e.service_id}
+              </p>
+              <p>
+                {e.contact_name} · {e.email} · {e.phone} · {e.service_id}
+              </p>
+              <p>
+                {e.start_date}–{e.end_date} · {e.rental_period} · {e.attendees} attendees
+              </p>
+              <p>{e.message}</p>
+              <label>
+                Enquiry state
+                <select
+                  aria-label="Enquiry state"
+                  value={e.state}
                   disabled={busy}
-                  onClick={() => void run("link_enquiry_account", { p_id: e.id })}
+                  onChange={(event) =>
+                    void run("update_enquiry", { p_id: e.id, p_state: event.target.value })
+                  }
                 >
-                  Link verified account
-                </Button>
-              </div>
-            ) : (
-              <>
-                <p>
-                  All quote times are Jamaica time. Creating a new version supersedes earlier
-                  unaccepted quotes.
-                </p>
-                {["start", "end", "expiry"].map((n) => (
-                  <label key={n} className="block">
-                    {n}
-                    <input
-                      name={n}
-                      type="datetime-local"
+                  {["new", "reviewing", "quoted", "closed"].map((s) => (
+                    <option key={s}>{s}</option>
+                  ))}
+                </select>
+              </label>
+              {!e.customer_id ? (
+                <div>
+                  <p>Customer needs a verified account matching the enquiry email.</p>
+                  <Button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void run("link_enquiry_account", { p_id: e.id })}
+                  >
+                    Link verified account
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={(event) =>
+                      event.currentTarget.form
+                        ?.querySelector<HTMLInputElement>('input[name="start"]')
+                        ?.focus()
+                    }
+                  >
+                    Prepare quote
+                  </Button>
+                  <p>
+                    All quote times are Jamaica time. Creating a new version supersedes earlier
+                    unaccepted quotes.
+                  </p>
+                  {["start", "end", "expiry"].map((n) => (
+                    <label key={n} className="block">
+                      {n}
+                      <input
+                        name={n}
+                        type="datetime-local"
+                        required
+                        className="ml-2 rounded border bg-background p-2"
+                      />
+                    </label>
+                  ))}
+                  <QuoteLines
+                    serviceId={e.service_id}
+                    key={`${e.id}:${data.data?.quotes.filter((q) => q.enquiry_id === e.id).length ?? 0}`}
+                  />
+                  <label className="block">
+                    Payment and arrival instructions
+                    <textarea
+                      name="instructions"
                       required
-                      className="ml-2 rounded border bg-background p-2"
+                      className="mt-1 w-full rounded border bg-background p-2"
                     />
                   </label>
-                ))}
-                <QuoteLines
-                  serviceId={e.service_id}
-                  key={`${e.id}:${data.data?.quotes.filter((q) => q.enquiry_id === e.id).length ?? 0}`}
-                />
-                <label className="block">
-                  Payment and arrival instructions
-                  <textarea
-                    name="instructions"
-                    required
-                    className="mt-1 w-full rounded border bg-background p-2"
-                  />
-                </label>
-                <Button disabled={busy}>Offer quote</Button>
-              </>
-            )}
-          </form>
-        ))}
+                  <Button disabled={busy}>Offer quote</Button>
+                </>
+              )}
+            </form>
+          ))}
       </section>
       <StaffCreate run={run} busy={busy} />
       {auth.role === "administrator" && <AdminConfiguration />}

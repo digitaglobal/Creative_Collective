@@ -225,8 +225,13 @@ describe("database-backed booking platform", () => {
       "select submit_enquiry('svc-enigma-meeting','Alice','alice@example.invalid','8761111111',$1::date,$1::date,'daily',2,'Long rental') as id",
       [start.slice(0, 10)],
     );
-    await actor(staff);
     const id = enquiry.rows[0]!.id;
+    expect((await db.query("select id from enquiries where id=$1", [id])).rows).toHaveLength(1);
+    await actor(bob);
+    expect((await db.query("select id from enquiries where id=$1", [id])).rows).toHaveLength(0);
+    await expect(db.query("select update_enquiry($1,'closed')", [id])).rejects.toThrow(/Staff/);
+    await actor(staff);
+    expect((await db.query("select id from enquiries where id=$1", [id])).rows).toHaveLength(1);
     const qs = start.replace("T10:", "T15:");
     const qe = start.replace("T10:", "T17:");
     const expiry = new Date(Date.now() + 60 * 60 * 1000).toISOString();

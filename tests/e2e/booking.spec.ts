@@ -317,6 +317,9 @@ test("customer enquiry becomes a reviewed quote and a saved reservation", async 
 }) => {
   await signIn(page, "customer@example.invalid");
   await page.goto("/studio-d/services/studio-rental");
+  await expect(page.getByLabel("Full name", { exact: true })).toHaveValue("Test Customer");
+  await expect(page.getByLabel("Email", { exact: true })).toHaveValue("customer@example.invalid");
+  await expect(page.getByLabel("Phone", { exact: true })).toHaveValue("8761111111");
   const date = new Date();
   date.setUTCDate(date.getUTCDate() + 14);
   while (date.getUTCDay() !== 1) date.setUTCDate(date.getUTCDate() + 1);
@@ -337,6 +340,19 @@ test("customer enquiry becomes a reviewed quote and a saved reservation", async 
   await signIn(staff, "staff@example.invalid");
   await staff.goto("/admin");
   const form = staff.locator("form").filter({ hasText: "Studio enquiry e2e" });
+  await expect(
+    page.getByRole("region", { name: "Enquiry receipt" }).getByText(/^Reference: ENQ-/),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Track in My enquiries" }).click();
+  const enquiries = page.getByRole("region", { name: "My enquiries", exact: true });
+  await expect(enquiries.getByText("Studio rental · Received", { exact: true })).toBeVisible();
+  await staff.getByLabel("Search enquiries", { exact: true }).fill("customer@example.invalid");
+  await form.getByLabel("Enquiry state", { exact: true }).selectOption("reviewing");
+  await page.getByRole("button", { name: "Refresh enquiries", exact: true }).click();
+  await expect(enquiries.getByText("Studio rental · Under review", { exact: true })).toBeVisible();
+  await staff.getByLabel("Filter enquiries", { exact: true }).selectOption("reviewing");
+  await form.getByRole("button", { name: "Prepare quote", exact: true }).click();
+  await expect(form.getByLabel("start", { exact: true })).toBeFocused();
   await form.getByLabel("start", { exact: true }).fill(day + "T15:00");
   await form.getByLabel("end", { exact: true }).fill(day + "T17:00");
   await form
