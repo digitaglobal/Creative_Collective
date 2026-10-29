@@ -1,8 +1,11 @@
+import { inDailyView, staffDateTime, statusLabel, type DailyView } from "@/lib/staff-workflow";
+import { venueDate } from "@/lib/booking";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { parseMoneyMinor } from "@/lib/money";
 import { useCatalog } from "@/hooks/use-catalog";
 import type { Policy } from "@/lib/booking";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { SiteLayout } from "@/components/site-chrome";
 import { AccessGate } from "@/components/access-gate";
@@ -23,7 +26,6 @@ function Admin() {
     <SiteLayout>
       <div className="mx-auto max-w-7xl px-4 py-12">
         <AccessGate staff>
-          <BookingFunnel />
           <Operations />
         </AccessGate>
       </div>
@@ -33,6 +35,13 @@ function Admin() {
 function Operations() {
   const auth = useAuth();
   const qc = useQueryClient();
+  const [dailyView, setDailyView] = useState<DailyView>("all");
+  const [today, setToday] = useState(() => venueDate());
+  useEffect(() => {
+    const timer = setInterval(() => setToday(venueDate()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
+  const saving = useRef(false);
   const [search, setSearch] = useState("");
   const [enquiryFilter, setEnquiryFilter] = useState("");
   const [enquirySearch, setEnquirySearch] = useState("");
@@ -78,24 +87,28 @@ function Operations() {
     refetchInterval: 30_000,
   });
   const run = async (name: string, args: Record<string, unknown>) => {
+    if (saving.current) return false;
+    saving.current = true;
     setBusy(true);
     setMessage("");
     try {
       await rpc(name, args);
       await qc.invalidateQueries();
-      setSelected(null);
+      if (name !== "add_note") setSelected(null);
       setMessage("Saved.");
       return true;
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Unable to save");
       return false;
     } finally {
+      saving.current = false;
       setBusy(false);
     }
   };
   const list = (data.data?.bookings ?? [])
     .filter(
       (b) =>
+        inDailyView(b, dailyView, today) &&
         (!search ||
           `${b.reference} ${b.customer_name} ${b.customer_email} ${b.service_name}`
             .toLowerCase()
@@ -112,11 +125,88 @@ function Operations() {
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-semibold">Operations</h1>
-      {message && <p role="status">{message}</p>}
-      {data.error && <p role="alert">{data.error.message}</p>}
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium text-muted-foreground">
+            STAFF WORKSPACE - JAMAICA TIME
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold">Operations</h1>
+          <p className="mt-2 text-muted-foreground">
+            {today} - Open a booking to take the next step.
+          </p>
+        </div>
+        <Button variant="outline" disabled={data.isFetching} onClick={() => void data.refetch()}>
+          Refresh dashboard
+        </Button>
+      </header>
+      <nav aria-label="Daily overview" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {(
+          [
+            ["approval", "Awaiting approval", "Review new requests"],
+            ["arrivals", "Arriving today", "Confirmed arrivals"],
+            ["departures", "Leaving today", "Sessions ending today"],
+            ["onsite", "Checked in", "Currently on site"],
+          ] as const
+        ).map(([value, label, hint]) => (
+          <button
+            key={value}
+            aria-pressed={dailyView === value}
+            onClick={() => {
+              setDailyView(value);
+              setSearch("");
+              setDate("");
+              setBrand("");
+              setState("");
+              setPayment("");
+              setResource("");
+            }}
+            className={`surface-panel rounded-2xl border p-4 text-left transition hover:border-primary focus-visible:outline-2 focus-visible:outline-primary ${dailyView === value ? "border-primary bg-primary/5" : ""}`}
+          >
+            <span className="block text-sm font-medium">{label}</span>
+            <span className="my-2 block text-3xl font-semibold">
+              {data.data
+                ? data.data.bookings.filter((b) => inDailyView(b, value, today)).length
+                : " - "}
+            </span>
+            <span className="text-xs text-muted-foreground">{hint}</span>
+          </button>
+        ))}
+      </nav>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-xl font-semibold">
+          {dailyView === "all"
+            ? "All bookings"
+            : {
+                approval: "Awaiting approval",
+                arrivals: "Arriving today",
+                departures: "Leaving today",
+                onsite: "Checked in",
+              }[dailyView]}
+        </h2>
+        <Button
+          variant="ghost"
+          onClick={() => {
+            setDailyView("all");
+            setSearch("");
+            setDate("");
+            setBrand("");
+            setState("");
+            setPayment("");
+            setResource("");
+          }}
+        >
+          Show all bookings / clear filters
+        </Button>
+      </div>
+      {message && !selected && <p role="status">{message}</p>}
+      {data.error && (
+        <p role="alert" className="rounded-xl border border-destructive p-4">
+          Could not load the dashboard. Check your connection and use Refresh dashboard to try
+          again.
+        </p>
+      )}
       {data.isLoading && <p role="status">Loading operations…</p>}
-      <div className="surface-panel flex flex-wrap gap-3 p-4">
+      <div className="surface-panel grid gap-4 rounded-2xl p-4 sm:grid-cols-2 lg:grid-cols-4 [&_label]:grid [&_label]:gap-1 [&_input]:m-0 [&_input]:min-w-0 [&_input]:w-full [&_select]:min-w-0 [&_select]:rounded-md [&_select]:border [&_select]:bg-background [&_select]:p-2">
         <label>
           Search
           <input
@@ -156,7 +246,9 @@ function Operations() {
               "no_show",
               "payment_exception",
             ].map((s) => (
-              <option key={s}>{s}</option>
+              <option key={s} value={s}>
+                {statusLabel(s)}
+              </option>
             ))}
           </select>
         </label>
@@ -165,7 +257,9 @@ function Operations() {
           <select aria-label="Payment" value={payment} onChange={(e) => setPayment(e.target.value)}>
             <option value="">All</option>
             {["unpaid", "paid", "pending", "failed", "refunded"].map((s) => (
-              <option key={s}>{s}</option>
+              <option key={s} value={s}>
+                {statusLabel(s)}
+              </option>
             ))}
           </select>
         </label>
@@ -188,12 +282,27 @@ function Operations() {
           {view === "list" ? "Calendar" : "List"}
         </Button>
       </div>
+      {data.data && list.length === 0 && (
+        <div className="surface-panel rounded-2xl p-8 text-center">
+          <h3 className="font-semibold">
+            {data.data.bookings.length
+              ? "No bookings in this view"
+              : "Your booking day starts here"}
+          </h3>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {data.data.bookings.length
+              ? "Try another day or clear the filters to see more bookings."
+              : "New reservation requests will appear here when bookings open."}
+          </p>
+        </div>
+      )}
       <div className={view === "calendar" ? "grid gap-3 md:grid-cols-3" : "space-y-3"}>
         {view === "list"
           ? list.map((b) => (
               <button
                 key={b.id}
-                className="surface-panel block w-full p-4 text-left"
+                data-testid="booking-card"
+                className="surface-panel block w-full rounded-2xl p-4 text-left transition hover:border-primary focus-visible:outline-2 focus-visible:outline-primary"
                 onClick={() => setSelected(b)}
               >
                 <p className="font-semibold">
@@ -203,8 +312,8 @@ function Operations() {
                   · {venueTime(b.starts_at)}–{venueTime(b.ends_at)} · {b.service_name}
                 </p>
                 <p>
-                  {b.reference} · {b.customer_name} · {b.booking_state} · {b.payment_state} ·{" "}
-                  {formatMoney(b.total_minor - b.paid_minor)} due
+                  {b.reference} · {b.customer_name} · {statusLabel(b.booking_state)} ·{" "}
+                  {statusLabel(b.payment_state)} · {formatMoney(b.total_minor - b.paid_minor)} due
                 </p>
               </button>
             ))
@@ -229,7 +338,8 @@ function Operations() {
                   .map((b) => (
                     <button
                       key={b.id}
-                      className="surface-panel block w-full p-4 text-left"
+                      data-testid="booking-card"
+                      className="surface-panel block w-full rounded-2xl p-4 text-left transition hover:border-primary focus-visible:outline-2 focus-visible:outline-primary"
                       onClick={() => setSelected(b)}
                     >
                       <p className="font-semibold">
@@ -239,26 +349,61 @@ function Operations() {
                         · {venueTime(b.starts_at)}–{venueTime(b.ends_at)} · {b.service_name}
                       </p>
                       <p>
-                        {b.reference} · {b.customer_name} · {b.booking_state} · {b.payment_state} ·{" "}
-                        {formatMoney(b.total_minor - b.paid_minor)} due
+                        {b.reference} · {b.customer_name} · {statusLabel(b.booking_state)} ·{" "}
+                        {statusLabel(b.payment_state)} · {formatMoney(b.total_minor - b.paid_minor)}{" "}
+                        due
                       </p>
                     </button>
                   ))}
               </section>
             ))}
       </div>
-      {selected && <StaffBooking key={selected.id} booking={selected} run={run} busy={busy} />}
+      <Dialog
+        open={!!selected}
+        onOpenChange={(open) => {
+          if (!open && !busy) setSelected(null);
+        }}
+      >
+        <DialogContent className="max-h-[90dvh] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto rounded-2xl">
+          <DialogTitle>Booking details</DialogTitle>
+          <DialogDescription>
+            Review the reservation and choose its next step. Times are in Jamaica time.
+          </DialogDescription>
+          {selected && (
+            <StaffBooking
+              key={selected.id}
+              booking={data.data?.bookings.find((b) => b.id === selected.id) ?? selected}
+              run={run}
+              busy={busy}
+            />
+          )}
+          {message && selected && <p role="status">{message}</p>}
+        </DialogContent>
+      </Dialog>
       <section className="surface-panel space-y-3 p-5">
         <h2 className="text-xl font-semibold">Needs attention</h2>
+        {data.data &&
+          !data.data.bookings.some(
+            (b) =>
+              ["pending_confirmation", "payment_exception"].includes(b.booking_state) ||
+              (b.booking_state === "confirmed" && b.paid_minor < b.total_minor),
+          ) &&
+          !data.data.changes.some((c) => c.state === "pending") &&
+          !data.data.jobs.some((j) => j.state === "failed") && (
+            <p className="text-sm text-muted-foreground">
+              You - re all caught up. No booking actions are waiting.
+            </p>
+          )}
         {data.data?.bookings
           .filter(
             (b) =>
-              ["pending_confirmation", "expired", "payment_exception"].includes(b.booking_state) ||
+              ["pending_confirmation", "payment_exception"].includes(b.booking_state) ||
               (b.booking_state === "confirmed" && b.paid_minor < b.total_minor),
           )
           .map((b) => (
             <button key={b.id} className="block underline" onClick={() => setSelected(b)}>
-              {b.reference} · {b.booking_state} · {formatMoney(b.total_minor - b.paid_minor)} due
+              {b.reference} · {statusLabel(b.booking_state)} ·{" "}
+              {formatMoney(b.total_minor - b.paid_minor)} due
             </button>
           ))}
         {data.data?.changes
@@ -441,7 +586,9 @@ function Operations() {
                   }
                 >
                   {["new", "reviewing", "quoted", "closed"].map((s) => (
-                    <option key={s}>{s}</option>
+                    <option key={s} value={s}>
+                      {statusLabel(s)}
+                    </option>
                   ))}
                 </select>
               </label>
@@ -503,7 +650,20 @@ function Operations() {
           ))}
       </section>
       <StaffCreate run={run} busy={busy} />
-      {auth.role === "administrator" && <AdminConfiguration />}
+      <details className="surface-panel rounded-2xl p-5">
+        <summary className="cursor-pointer font-semibold">Booking insights</summary>
+        <div className="pt-4">
+          <BookingFunnel />
+        </div>
+      </details>
+      {auth.role === "administrator" && (
+        <details className="surface-panel rounded-2xl p-5">
+          <summary className="cursor-pointer font-semibold">Administrator settings</summary>
+          <div className="pt-4">
+            <AdminConfiguration />
+          </div>
+        </details>
+      )}
     </div>
   );
 }
@@ -634,18 +794,26 @@ function StaffBooking({
   busy: boolean;
 }) {
   const [key, setKey] = useState(() => crypto.randomUUID());
+  const [confirmAction, setConfirmAction] = useState<string | null>(null);
+  const [note, setNote] = useState("");
   const [transactionError, setTransactionError] = useState("");
   const detail = useQuery({
     queryKey: ["staff-detail", b.id],
     queryFn: async () => {
-      const [notes, audit, payments, profile] = await Promise.all([
-        db().from("internal_notes").select("*").eq("booking_id", b.id),
+      const [notes, audit, payments, profile, actors] = await Promise.all([
+        db()
+          .from("internal_notes")
+          .select("*")
+          .eq("booking_id", b.id)
+          .order("created_at", { ascending: false }),
         db().from("audit_events").select("*").eq("booking_id", b.id).order("created_at"),
         db().from("payments").select("*").eq("booking_id", b.id),
         db().from("profiles").select("phone").eq("id", b.customer_id).single(),
+        db().from("profiles").select("id,full_name"),
       ]);
-      for (const r of [notes, audit, payments, profile]) if (r.error) throw r.error;
+      for (const r of [notes, audit, payments, profile, actors]) if (r.error) throw r.error;
       return {
+        actors: actors.data!,
         notes: notes.data!,
         audit: audit.data!,
         payments: payments.data!,
@@ -662,103 +830,179 @@ function StaffBooking({
           ? ["completed", "cancelled"]
           : [];
   return (
-    <section className="surface-panel space-y-4 p-5">
+    <section className="space-y-5 break-words">
       <h2 className="text-xl font-semibold">{b.reference}</h2>
       <p>
         {b.customer_name} · {b.customer_email} · {detail.data?.phone}
       </p>
       <p>
-        {b.service_name} · {b.starts_at}–{b.ends_at}
+        {b.service_name} / {staffDateTime(b.starts_at)} - {staffDateTime(b.ends_at)}
       </p>
       <p>
         Total {formatMoney(b.total_minor)} · Paid {formatMoney(b.paid_minor)} · Balance{" "}
         {formatMoney(b.total_minor - b.paid_minor)}
       </p>
+      <p className="rounded-xl bg-muted p-3 font-medium">
+        {statusLabel(b.booking_state)} - {b.attendees} attendees
+      </p>
       <div className="flex flex-wrap gap-2">
         {transitions.map((s) => (
           <Button
             key={s}
-            disabled={busy}
-            onClick={() => void run("transition_booking", { p_id: b.id, p_state: s })}
+            variant={s === "cancelled" || s === "no_show" ? "outline" : "default"}
+            disabled={busy || (s === "no_show" && new Date(b.starts_at).getTime() > Date.now())}
+            onClick={() => {
+              if (s === "cancelled" || s === "no_show") setConfirmAction(s);
+              else void run("transition_booking", { p_id: b.id, p_state: s });
+            }}
           >
-            {s.replaceAll("_", " ")}
+            {
+              {
+                confirmed: "Approve booking",
+                checked_in: "Check in",
+                completed: "Complete booking",
+                cancelled:
+                  b.booking_state === "pending_confirmation" ? "Reject request" : "Cancel booking",
+                no_show: "Mark no-show",
+              }[s]
+            }
           </Button>
         ))}
       </div>
+      {confirmAction && (
+        <div
+          role="group"
+          aria-label="Confirm booking action"
+          className="space-y-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4"
+        >
+          <p className="font-semibold">
+            {confirmAction === "no_show"
+              ? "Mark this customer as a no-show?"
+              : b.booking_state === "pending_confirmation"
+                ? "Reject this reservation request?"
+                : "Cancel this booking?"}
+          </p>
+          <p className="text-sm">
+            This releases the reserved space. Any payment already recorded remains unchanged; handle
+            refunds separately.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="destructive"
+              disabled={busy}
+              onClick={() => void run("transition_booking", { p_id: b.id, p_state: confirmAction })}
+            >
+              Confirm{" "}
+              {confirmAction === "no_show"
+                ? "no-show"
+                : b.booking_state === "pending_confirmation"
+                  ? "rejection"
+                  : "cancellation"}
+            </Button>
+            <Button variant="outline" disabled={busy} onClick={() => setConfirmAction(null)}>
+              Keep booking
+            </Button>
+          </div>
+        </div>
+      )}
+      <details className="rounded-xl border p-4">
+        <summary className="cursor-pointer font-medium">Manual payment or refund</summary>
+        <form
+          className="space-y-3 pt-4 [&_input]:ml-0 [&_input]:w-full"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const f = new FormData(e.currentTarget);
+            setTransactionError("");
+            try {
+              const saved = await run("record_payment", {
+                p_id: b.id,
+                p_amount: parseMoneyMinor(String(f.get("amount"))),
+                p_kind: f.get("kind"),
+                p_method: f.get("method"),
+                p_reference: f.get("reference"),
+                p_key: key,
+              });
+              if (saved) setKey(crypto.randomUUID());
+            } catch (err) {
+              setTransactionError(
+                err instanceof Error ? err.message : "Check the transaction amount.",
+              );
+            }
+          }}
+        >
+          <h3 className="font-semibold">Manual payment or refund</h3>
+          <label>
+            Kind
+            <select name="kind" aria-label="Kind">
+              <option value="payment">Payment</option>
+              <option value="refund">Refund</option>
+            </select>
+          </label>
+          {[
+            ["amount", "Amount (JMD)", "number"],
+            ["method", "Method", "text"],
+            ["reference", "Receipt/reference", "text"],
+          ].map(([n, l, t]) => (
+            <label key={n} className="block">
+              {l}
+              <input
+                name={n}
+                type={t}
+                required
+                min={t === "number" ? 0.01 : undefined}
+                step={t === "number" ? "0.01" : undefined}
+                className="ml-2 rounded border bg-background p-2"
+              />
+            </label>
+          ))}
+          <Button disabled={busy}>Record transaction</Button>
+          {transactionError && <p role="alert">{transactionError}</p>}
+        </form>
+      </details>
       <form
-        className="space-y-2"
+        className="space-y-3 rounded-xl border p-4"
         onSubmit={async (e) => {
           e.preventDefault();
-          const f = new FormData(e.currentTarget);
-          setTransactionError("");
-          try {
-            const saved = await run("record_payment", {
-              p_id: b.id,
-              p_amount: parseMoneyMinor(String(f.get("amount"))),
-              p_kind: f.get("kind"),
-              p_method: f.get("method"),
-              p_reference: f.get("reference"),
-              p_key: key,
-            });
-            if (saved) setKey(crypto.randomUUID());
-          } catch (err) {
-            setTransactionError(
-              err instanceof Error ? err.message : "Check the transaction amount.",
-            );
-          }
-        }}
-      >
-        <h3 className="font-semibold">Manual payment or refund</h3>
-        <label>
-          Kind
-          <select name="kind" aria-label="Kind">
-            <option value="payment">Payment</option>
-            <option value="refund">Refund</option>
-          </select>
-        </label>
-        {[
-          ["amount", "Amount (JMD)", "number"],
-          ["method", "Method", "text"],
-          ["reference", "Receipt/reference", "text"],
-        ].map(([n, l, t]) => (
-          <label key={n} className="block">
-            {l}
-            <input
-              name={n}
-              type={t}
-              required
-              min={t === "number" ? 0.01 : undefined}
-              step={t === "number" ? "0.01" : undefined}
-              className="ml-2 rounded border bg-background p-2"
-            />
-          </label>
-        ))}
-        <Button disabled={busy}>Record transaction</Button>
-        {transactionError && <p role="alert">{transactionError}</p>}
-      </form>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void run("add_note", { p_id: b.id, p_body: new FormData(e.currentTarget).get("note") });
+          if (await run("add_note", { p_id: b.id, p_body: note.trim() })) setNote("");
         }}
       >
         <label>
           Internal note
           <textarea
             name="note"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
             required
             maxLength={5000}
             className="block w-full rounded border bg-background p-2"
           />
         </label>
-        <Button disabled={busy}>Add note</Button>
+        <p className="text-xs text-muted-foreground">
+          Staff only. These notes are never shown to customers.
+        </p>
+        <Button disabled={busy || !note.trim()}>Add note</Button>
       </form>
-      {detail.error && <p role="alert">{detail.error.message}</p>}
+      {detail.isLoading && <p role="status">Loading booking history - </p>}
+      {detail.error && (
+        <p role="alert">
+          Could not load booking history.{" "}
+          <button className="underline" onClick={() => void detail.refetch()}>
+            Try again
+          </button>
+        </p>
+      )}
       <details>
-        <summary>Notes, payments and audit history</summary>
+        <summary className="cursor-pointer font-semibold">
+          Notes, payments and audit history
+        </summary>
+        {detail.data &&
+          !detail.data.notes.length &&
+          !detail.data.payments.length &&
+          !detail.data.audit.length && <p className="py-3 text-sm">No activity recorded yet.</p>}
         {detail.data?.notes.map((n) => (
           <p key={n.id}>
-            {n.body} · {n.created_at}
+            {n.body} / {staffDateTime(n.created_at)} /{" "}
+            {detail.data?.actors.find((a) => a.id === n.actor_id)?.full_name || "Staff member"}
           </p>
         ))}
         {detail.data?.payments.map((p) => (
@@ -768,7 +1012,10 @@ function StaffBooking({
         ))}
         {detail.data?.audit.map((a) => (
           <p key={a.id}>
-            {a.created_at} · {a.action} · {a.actor_id ?? "system"}
+            {staffDateTime(a.created_at)} / {statusLabel(a.action)} /{" "}
+            {a.actor_id
+              ? detail.data?.actors.find((p) => p.id === a.actor_id)?.full_name || "Staff member"
+              : "System"}
           </p>
         ))}
       </details>

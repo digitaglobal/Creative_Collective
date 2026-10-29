@@ -83,31 +83,33 @@ test("customer requests a real reservation; staff approve, record payment, check
   const staff = await browser.newPage();
   await signIn(staff, "staff@example.invalid");
   await staff.goto("/admin");
+  await staff.getByText("Booking insights", { exact: true }).click();
   await expect(
     staff
       .getByRole("region", { name: "Booking conversion" })
       .getByRole("cell", { name: "desktop", exact: true }),
   ).toBeVisible();
-  await staff.locator("button.surface-panel").filter({ hasText: reference }).click();
-  await staff.getByRole("button", { name: "confirmed", exact: true }).click();
+  await staff.getByTestId("booking-card").filter({ hasText: reference }).click();
+  await staff.getByRole("button", { name: "Approve booking", exact: true }).click();
   await expect(staff.getByText("Saved.", { exact: true })).toBeVisible();
-  await staff.locator("button.surface-panel").filter({ hasText: reference }).click();
+  await staff.getByTestId("booking-card").filter({ hasText: reference }).click();
+  await staff.getByText("Manual payment or refund", { exact: true }).first().click();
   await staff.getByLabel("Amount (JMD)", { exact: true }).fill("5750");
   await staff.getByLabel("Method", { exact: true }).fill("cash");
   await staff.getByLabel("Receipt/reference", { exact: true }).fill("receipt-e2e");
   await staff.getByRole("button", { name: "Record transaction" }).click();
   await expect(staff.getByText("Saved.", { exact: true })).toBeVisible();
-  await staff.locator("button.surface-panel").filter({ hasText: reference }).click();
-  await staff.getByRole("button", { name: "checked in", exact: true }).click();
+  await staff.getByTestId("booking-card").filter({ hasText: reference }).click();
+  await staff.getByRole("button", { name: "Check in", exact: true }).click();
   await expect(staff.getByText("Saved.", { exact: true })).toBeVisible();
-  await staff.locator("button.surface-panel").filter({ hasText: reference }).click();
-  await staff.getByRole("button", { name: "completed", exact: true }).click();
+  await staff.getByTestId("booking-card").filter({ hasText: reference }).click();
+  await staff.getByRole("button", { name: "Complete booking", exact: true }).click();
   await expect(staff.getByText("Saved.", { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByText("completed · paid", { exact: true })).toBeVisible();
-  await staff.locator("button.surface-panel").filter({ hasText: reference }).click();
+  await staff.getByTestId("booking-card").filter({ hasText: reference }).click();
   await staff.getByText("Notes, payments and audit history", { exact: true }).click();
-  await expect(staff.getByText(/· completed · 10000000/)).toBeVisible();
+  await expect(staff.getByText(/Completed \/ Test Staff/)).toBeVisible();
   expect(errors).toEqual([]);
   await staff.close();
 });
@@ -185,6 +187,7 @@ test("staff filters reservations, keeps notes private, records partial payments 
   page,
   browser,
 }) => {
+  test.setTimeout(60_000);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await signIn(page, "customer@example.invalid");
@@ -208,7 +211,7 @@ test("staff filters reservations, keeps notes private, records partial payments 
   staff.on("pageerror", (error) => errors.push(error.message));
   await signIn(staff, "staff@example.invalid");
   await staff.goto("/admin");
-  const cards = staff.locator("button.surface-panel");
+  const cards = staff.getByTestId("booking-card");
   await staff.getByLabel("Search", { exact: true }).fill(reference);
   await staff.getByLabel("Date", { exact: true }).fill(day);
   await staff.getByLabel("Brand", { exact: true }).selectOption("enigma");
@@ -230,17 +233,17 @@ test("staff filters reservations, keeps notes private, records partial payments 
   }
   await open();
   await staff.getByLabel("Internal note").fill("Private payment follow-up test");
-  await staff.getByRole("button", { name: "Add note", exact: true }).click();
+  await staff.getByRole("button", { name: "Add note", exact: true }).dblclick();
   await expect(staff.getByText("Saved.", { exact: true })).toBeVisible();
-  await open();
   await staff.getByText("Notes, payments and audit history", { exact: true }).click();
-  await expect(staff.getByText(/Private payment follow-up test/)).toBeVisible();
-  await staff.getByRole("button", { name: "confirmed", exact: true }).click();
+  await expect(staff.getByText(/Private payment follow-up test/)).toHaveCount(1);
+  await staff.getByRole("button", { name: "Approve booking", exact: true }).click();
   await expect(staff.getByText("Saved.", { exact: true })).toBeVisible();
   await open();
-  await staff.getByRole("button", { name: "no show", exact: true }).click();
-  await expect(staff.getByText("Session has not started", { exact: true })).toBeVisible();
+  await expect(staff.getByRole("button", { name: "Mark no-show", exact: true })).toBeDisabled();
   async function transaction(amount: string, kind: string, receipt: string) {
+    if (!(await staff.getByLabel("Kind", { exact: true }).isVisible()))
+      await staff.getByText("Manual payment or refund", { exact: true }).first().click();
     await staff.getByLabel("Kind", { exact: true }).selectOption(kind);
     await staff.getByLabel("Amount (JMD)", { exact: true }).fill(amount);
     await staff.getByLabel("Method", { exact: true }).fill("cash");
@@ -258,7 +261,11 @@ test("staff filters reservations, keeps notes private, records partial payments 
   await transaction("3750", "payment", "staff-balance");
   await expect(staff.getByText("Saved.", { exact: true })).toBeVisible();
   await open();
-  await staff.getByRole("button", { name: "cancelled", exact: true }).click();
+  await staff.getByRole("button", { name: "Cancel booking", exact: true }).click();
+  await staff.getByRole("button", { name: "Keep booking", exact: true }).click();
+  await expect(staff.getByRole("group", { name: "Confirm booking action" })).toHaveCount(0);
+  await staff.getByRole("button", { name: "Cancel booking", exact: true }).click();
+  await staff.getByRole("button", { name: "Confirm cancellation", exact: true }).click();
   await expect(staff.getByText("Saved.", { exact: true })).toBeVisible();
   await open();
   await expect(
@@ -273,12 +280,14 @@ test("staff filters reservations, keeps notes private, records partial payments 
   await expect(staff.getByText(/staff-partial/)).toHaveCount(1);
   await expect(staff.getByText(/staff-full-refund/)).toHaveCount(1);
   await expect(staff.getByText(/staff-overpayment|staff-over-refund/)).toHaveCount(0);
+  await staff.getByRole("button", { name: "Close", exact: true }).click();
   await staff.getByLabel("Payment", { exact: true }).selectOption("refunded");
   await expect(cards).toHaveCount(1);
   await staff.getByLabel("Payment", { exact: true }).selectOption("");
   await staff.getByLabel("Search", { exact: true }).fill(rejected);
   await cards.filter({ hasText: rejected }).click();
-  await staff.getByRole("button", { name: "cancelled", exact: true }).click();
+  await staff.getByRole("button", { name: "Reject request", exact: true }).click();
+  await staff.getByRole("button", { name: "Confirm rejection", exact: true }).click();
   await expect(staff.getByText("Saved.", { exact: true })).toBeVisible();
   await page.goto("/account/bookings");
   await expect(page.getByText("cancelled · refunded", { exact: true })).toBeVisible();
@@ -286,13 +295,14 @@ test("staff filters reservations, keeps notes private, records partial payments 
   await staff.getByLabel("Date", { exact: true }).fill("");
   await staff.getByLabel("Search", { exact: true }).fill("CC-TEST-NOSHOW");
   await cards.filter({ hasText: "CC-TEST-NOSHOW" }).click();
-  await staff.getByRole("button", { name: "no show", exact: true }).click();
+  await staff.getByRole("button", { name: "Mark no-show", exact: true }).click();
+  await staff.getByRole("button", { name: "Confirm no-show", exact: true }).click();
   await expect(staff.getByText("Saved.", { exact: true })).toBeVisible();
   await staff.getByLabel("Status", { exact: true }).selectOption("no_show");
   await expect(cards).toHaveCount(1);
   await cards.click();
   await staff.getByText("Notes, payments and audit history", { exact: true }).click();
-  await expect(staff.getByText(/· no_show · 10000000/)).toBeVisible();
+  await expect(staff.getByText(/No-show \/ Test Staff/)).toBeVisible();
   expect(errors).toEqual([]);
   await staff.close();
 });
@@ -300,6 +310,7 @@ test("staff filters reservations, keeps notes private, records partial payments 
 test("administrator edits booking settings with ordinary fields", async ({ page }) => {
   await signIn(page, "staff@example.invalid");
   await page.goto("/admin");
+  await page.getByText("Administrator settings", { exact: true }).click();
   await page.getByRole("button", { name: "Booking settings", exact: true }).click();
   await page.getByLabel("Advance notice (hours)", { exact: true }).fill("5");
   await page.getByRole("button", { name: "Save configuration", exact: true }).click();
@@ -441,4 +452,29 @@ test("customer enquiry becomes a reviewed quote and a saved reservation", async 
     bookingCard.getByText("Change request: reschedule · approved", { exact: true }),
   ).toBeVisible();
   await staff.close();
+});
+
+test("staff daily overview and booking panel are usable on mobile", async ({ page }) => {
+  await signIn(page, "staff@example.invalid");
+  await page.goto("/admin");
+  await expect(page.getByRole("navigation", { name: "Daily overview" })).toBeVisible();
+  await page.getByRole("button", { name: /Arriving today/ }).click();
+  await expect(page.getByRole("button", { name: /Arriving today/ })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await page.getByRole("button", { name: "Show all bookings / clear filters" }).click();
+  await page.screenshot({ path: ".cache/staff-dashboard-desktop.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole("heading", { name: "Operations", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: ".cache/staff-dashboard-mobile.png", fullPage: true });
+  await page.getByTestId("booking-card").filter({ hasText: "CC-TEST-NOSHOW" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  expect(await page.getByRole("dialog").evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
+    true,
+  );
+  await page.screenshot({ path: ".cache/staff-booking-mobile.png", fullPage: true });
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 });
