@@ -2,7 +2,8 @@ import { useCatalog } from "@/hooks/use-catalog";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 import { SiteLayout } from "@/components/site-chrome";
-import { ImagePlaceholder } from "@/components/demo-banner";
+import { VenueImage } from "@/components/venue-image";
+import { brandPhotos } from "@/data/venue-media";
 import { Button } from "@/components/ui/button";
 import { brands as fallbackBrands, VENUE_TIMEZONE_LABEL } from "@/data/catalog";
 
@@ -94,8 +95,10 @@ function Home() {
           return (
             <article key={b.slug} className="group surface-panel overflow-hidden">
               <div className="relative">
-                <ImagePlaceholder
+                <VenueImage
+                  photo={brandPhotos[b.slug].cover}
                   alt={`${b.name} space`}
+                  eager
                   className={`h-56 rounded-none ${b.slug === "enigma" ? "bg-brand-enigma" : "bg-brand-studio-d"}`}
                 />
                 <p className="absolute left-4 top-4 rounded-full bg-background/90 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em]">

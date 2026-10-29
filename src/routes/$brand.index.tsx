@@ -5,6 +5,8 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { PageHeading, SiteLayout } from "@/components/site-chrome";
 import { ServiceCard } from "@/components/booking-pieces";
 import { getBrand } from "@/data/catalog";
+import { brandPhotos } from "@/data/venue-media";
+import { VenueImage } from "@/components/venue-image";
 
 export const Route = createFileRoute("/$brand/")({
   loader: async ({ params }) => {
@@ -41,7 +43,25 @@ function BrandPage() {
       <div className="mx-auto max-w-7xl px-4 py-12">
         <PageHeading eyebrow={brand.tagline} title={brand.name} description={brand.description} />
         <p className="mt-2 text-sm text-muted-foreground">{brand.addressStatus}</p>
-        {catalog.isLoading && <p role="status">Loading spaces?</p>}
+        <section className="mt-8" aria-label={`${brand.name} photo gallery`}>
+          <VenueImage
+            photo={brandPhotos[brand.slug].cover}
+            alt={`${brand.name} interior`}
+            className="h-64 rounded-xl sm:h-96"
+            eager
+          />
+          <div className="mt-3 flex gap-3 overflow-x-auto pb-3">
+            {brandPhotos[brand.slug].gallery.map((photo) => (
+              <VenueImage
+                key={photo.src}
+                photo={photo}
+                alt={photo.alt}
+                className="h-32 !w-52 shrink-0 rounded-lg"
+              />
+            ))}
+          </div>
+        </section>
+        {catalog.isLoading && <p role="status">Loading spaces…</p>}
         {catalog.error && <p role="alert">{catalog.error.message}</p>}
         {!catalog.isLoading && !list.length && (
           <p className="mt-6">The service catalog is awaiting venue setup.</p>

@@ -3,7 +3,8 @@ import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { DraftBadge } from "@/components/status-badges";
-import { ImagePlaceholder } from "@/components/demo-banner";
+import { VenueImage } from "@/components/venue-image";
+import { servicePhoto } from "@/data/venue-media";
 import { CURRENCY, VENUE_TIMEZONE_LABEL, type ContentType, type Service } from "@/data/catalog";
 import { formatDuration, formatMoney } from "@/lib/format";
 
@@ -12,10 +13,13 @@ export function ServiceCard({ service }: { service: Service }) {
     service.status === "published" && service.bookableHourly && service.hourlyRateMinor !== null;
   return (
     <article className="surface-panel flex flex-col overflow-hidden">
-      {service.imageUrl ? (
-        <img src={service.imageUrl} alt={service.imageAlt} className="h-40 w-full object-cover" />
-      ) : (
-        <ImagePlaceholder alt={service.imageAlt} className="h-40 rounded-none" />
+      <VenueImage
+        photo={servicePhoto(service)}
+        alt={service.imageAlt}
+        className="h-48 rounded-none"
+      />
+      {servicePhoto(service)?.caption && (
+        <p className="px-5 pt-2 text-xs text-muted-foreground">{servicePhoto(service)?.caption}</p>
       )}
       <div className="flex flex-1 flex-col gap-3 p-5">
         <div className="flex flex-wrap items-start justify-between gap-2">

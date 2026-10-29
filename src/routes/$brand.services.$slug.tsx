@@ -1,7 +1,8 @@
 import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { SiteLayout } from "@/components/site-chrome";
-import { ImagePlaceholder } from "@/components/demo-banner";
+import { VenueImage } from "@/components/venue-image";
+import { servicePhoto } from "@/data/venue-media";
 import { DraftBadge } from "@/components/status-badges";
 import {
   BookingStepper,
@@ -137,14 +138,14 @@ function ServicePage() {
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_380px]">
           <div className="space-y-6">
-            {service.imageUrl ? (
-              <img
-                src={service.imageUrl}
-                alt={service.imageAlt}
-                className="h-64 w-full rounded-xl object-cover"
-              />
-            ) : (
-              <ImagePlaceholder alt={service.imageAlt} className="h-64" />
+            <VenueImage
+              photo={servicePhoto(service)}
+              alt={service.imageAlt}
+              className="h-72 rounded-xl sm:h-96"
+              eager
+            />
+            {servicePhoto(service)?.caption && (
+              <p className="text-xs text-muted-foreground">{servicePhoto(service)?.caption}</p>
             )}
             <div className="grid gap-4 md:grid-cols-3">
               <InclusionList type="included" items={service.content.included} />

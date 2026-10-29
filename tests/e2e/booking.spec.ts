@@ -72,6 +72,61 @@ test("mobile catalog has no horizontal overflow and customer cannot open staff o
   await expect(page.getByText("Staff access is required.", { exact: true })).toBeVisible();
 });
 
+test("website venue photographs load on home, galleries and matching services", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("/");
+  const covers = page.locator('img[src^="/images/venues/"]');
+  await expect(covers).toHaveCount(2);
+  await expect
+    .poll(() =>
+      covers.evaluateAll((images) =>
+        images.every(
+          (image) =>
+            (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0,
+        ),
+      ),
+    )
+    .toBe(true);
+  await page.screenshot({ path: ".cache/venue-home-desktop.png" });
+  await page.goto("/enigma/services/hot-desk");
+  const hotDesk = page.getByRole("img", {
+    name: "Shared desks and yellow chairs in Enigma’s Sandbox",
+    exact: true,
+  });
+  await expect(hotDesk).toBeVisible();
+  await expect
+    .poll(() => hotDesk.evaluate((image) => (image as HTMLImageElement).naturalWidth))
+    .toBeGreaterThan(0);
+  await page.goto("/studio-d");
+  await expect(
+    page.getByRole("region", { name: "Studio D photo gallery" }).locator("img"),
+  ).toHaveCount(7);
+  await page.goto("/studio-d/services/studio-lounge");
+  await expect(
+    page.getByText("Lounge rendering from Studio D’s website.", { exact: true }),
+  ).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/enigma");
+  await expect(page.getByRole("region", { name: "Enigma photo gallery" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Hot desk — The Sandbox", exact: true }),
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      page
+        .locator('img[src="/images/venues/enigma-hot-desk.jpg"]')
+        .first()
+        .evaluate((image) => (image as HTMLImageElement).naturalWidth),
+    )
+    .toBeGreaterThan(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  await page.screenshot({ path: ".cache/venue-gallery-mobile.png" });
+});
+
 test("staff filters reservations, keeps notes private, records partial payments and refunds, and rejects requests", async ({
   page,
   browser,
