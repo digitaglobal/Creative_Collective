@@ -182,6 +182,7 @@ createServer((request, response) => {
           "quotes",
           "quote_revisions",
           "enquiries",
+          "enquiry_followups",
           "notification_jobs",
           "allocations",
           "resources",

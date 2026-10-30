@@ -379,6 +379,24 @@ test("customer enquiry becomes a reviewed quote and a saved reservation", async 
   await page.getByRole("link", { name: "Track in My enquiries" }).click();
   const enquiries = page.getByRole("region", { name: "My enquiries", exact: true });
   await expect(enquiries.getByText("Studio rental · Received", { exact: true })).toBeVisible();
+  await staff.setViewportSize({ width: 390, height: 844 });
+  await form.getByText(/Staff follow-up/).click();
+  await form.getByLabel("Assign this enquiry to me").check();
+  await form.getByLabel("Follow-up date (Jamaica)").fill("2020-01-01");
+  await form.getByLabel("Internal notes", { exact: true }).fill("Private staff handover only");
+  await form.getByRole("button", { name: "Save follow-up", exact: true }).click();
+  await expect(form.getByText(/Assigned to you/)).toBeVisible();
+  await staff.getByLabel("Follow-up queue").selectOption("due");
+  await expect(form).toBeVisible();
+  await staff.reload();
+  await expect(form.getByText(/Assigned to you/)).toBeVisible();
+  await form.getByText(/Staff follow-up/).click();
+  await expect(staff.getByRole("textbox", { name: "Internal notes", exact: true })).toHaveValue(
+    "Private staff handover only",
+  );
+  expect(await staff.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await staff.screenshot({ path: ".cache/enquiry-followup-mobile.png", fullPage: true });
+  await expect(page.getByText("Private staff handover only")).toHaveCount(0);
   await staff.getByLabel("Search enquiries", { exact: true }).fill("customer@example.invalid");
   await form.getByLabel("Enquiry state", { exact: true }).selectOption("reviewing");
   await page.getByRole("button", { name: "Refresh enquiries", exact: true }).click();

@@ -45,6 +45,7 @@ function Operations() {
   const [search, setSearch] = useState("");
   const [enquiryFilter, setEnquiryFilter] = useState("");
   const [enquirySearch, setEnquirySearch] = useState("");
+  const [followupFilter, setFollowupFilter] = useState("");
   const catalog = useCatalog();
   const [date, setDate] = useState("");
   const [brand, setBrand] = useState("");
@@ -68,6 +69,7 @@ function Operations() {
         "resources",
         "quotes",
         "quote_revisions",
+        "enquiry_followups",
       ] as const;
       const results = await Promise.all(tables.map((t) => db().from(t).select("*")));
       results.forEach((r) => {
@@ -82,6 +84,7 @@ function Operations() {
         resources: results[5]!.data!,
         quotes: results[6]!.data!,
         revisions: results[7]!.data!,
+        followups: results[8]!.data!,
       };
     },
     refetchInterval: 30_000,
@@ -380,7 +383,7 @@ function Operations() {
           {message && selected && <p role="status">{message}</p>}
         </DialogContent>
       </Dialog>
-      <section className="surface-panel space-y-3 p-5">
+      <section className="surface-panel min-w-0 space-y-4 rounded-2xl p-4 sm:p-6 [&_p]:break-words">
         <h2 className="text-xl font-semibold">Needs attention</h2>
         {data.data &&
           !data.data.bookings.some(
@@ -469,7 +472,7 @@ function Operations() {
       </section>
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Enquiries and quotes</h2>
-        <div className="flex flex-wrap gap-4">
+        <div className="grid gap-4 rounded-2xl border bg-muted/30 p-4 sm:grid-cols-3 [&_label]:grid [&_label]:gap-2 [&_input]:ml-0 [&_input]:w-full [&_select]:ml-0 [&_select]:min-h-11">
           <label>
             Filter enquiries
             <select
@@ -497,12 +500,45 @@ function Operations() {
             />
           </label>
         </div>
+        <label className="grid gap-2 text-sm sm:max-w-xs">
+          Follow-up queue
+          <select
+            className="min-h-11 rounded-lg border bg-background p-2"
+            value={followupFilter}
+            onChange={(event) => setFollowupFilter(event.target.value)}
+          >
+            <option value="">All enquiries</option>
+            <option value="mine">Assigned to me</option>
+            <option value="unassigned">Unassigned open enquiries</option>
+            <option value="due">Follow-up due</option>
+          </select>
+        </label>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => {
+            setEnquiryFilter("");
+            setEnquirySearch("");
+            setFollowupFilter("");
+          }}
+        >
+          Clear enquiry filters
+        </Button>
         <p className="text-sm">
           Newest enquiries first. Preparing a quote does not reserve inventory or send an email.
         </p>
         {data.data &&
           !data.data.enquiries.some(
             (e) =>
+              (!followupFilter ||
+                (() => {
+                  const followup = data.data?.followups.find((f) => f.enquiry_id === e.id);
+                  if (followupFilter === "mine") return followup?.owner_id === auth.user?.id;
+                  if (e.state === "closed") return false;
+                  return followupFilter === "unassigned"
+                    ? !followup?.owner_id
+                    : !!followup?.follow_up_on && followup.follow_up_on.slice(0, 10) <= today;
+                })()) &&
               (!enquiryFilter || e.state === enquiryFilter) &&
               `${e.id} ${e.contact_name} ${e.email} ${e.service_id} ${catalog.data?.services.find((s) => s.id === e.service_id)?.name ?? ""}`
                 .toLowerCase()
@@ -511,6 +547,15 @@ function Operations() {
         {data.data?.enquiries
           .filter(
             (e) =>
+              (!followupFilter ||
+                (() => {
+                  const followup = data.data?.followups.find((f) => f.enquiry_id === e.id);
+                  if (followupFilter === "mine") return followup?.owner_id === auth.user?.id;
+                  if (e.state === "closed") return false;
+                  return followupFilter === "unassigned"
+                    ? !followup?.owner_id
+                    : !!followup?.follow_up_on && followup.follow_up_on.slice(0, 10) <= today;
+                })()) &&
               (!enquiryFilter || e.state === enquiryFilter) &&
               `${e.id} ${e.contact_name} ${e.email} ${e.service_id} ${catalog.data?.services.find((s) => s.id === e.service_id)?.name ?? ""}`
                 .toLowerCase()
@@ -520,7 +565,7 @@ function Operations() {
           .map((e) => (
             <form
               key={e.id}
-              className="surface-panel space-y-3 p-5"
+              className="surface-panel min-w-0 space-y-4 rounded-2xl p-4 sm:p-6 [&_p]:break-words"
               onSubmit={(event) => {
                 event.preventDefault();
                 const f = new FormData(event.currentTarget);
@@ -558,6 +603,15 @@ function Operations() {
                 {e.start_date}–{e.end_date} · {e.rental_period} · {e.attendees} attendees
               </p>
               <p>{e.message}</p>
+              <EnquiryFollowup
+                key={`${e.id}:${data.data?.followups.find((f) => f.enquiry_id === e.id)?.updated_at ?? "new"}`}
+                enquiryId={e.id}
+                followup={data.data?.followups.find((f) => f.enquiry_id === e.id)}
+                userId={auth.user?.id}
+                busy={busy}
+                save={run}
+                today={today}
+              />
               {data.data?.revisions
                 .filter((revision) => revision.enquiry_id === e.id)
                 .map((revision) => (
@@ -1163,5 +1217,82 @@ function QuoteLines({ serviceId }: { serviceId: string }) {
         Add charge
       </Button>
     </fieldset>
+  );
+}
+
+function EnquiryFollowup({
+  enquiryId,
+  followup,
+  userId,
+  busy,
+  save,
+  today,
+}: {
+  enquiryId: string;
+  followup?: { owner_id: string | null; notes: string; follow_up_on: string | null };
+  userId?: string | undefined;
+  busy: boolean;
+  today: string;
+  save: (name: string, args: Record<string, unknown>) => Promise<boolean>;
+}) {
+  const [notes, setNotes] = useState(followup?.notes ?? "");
+  const [due, setDue] = useState(followup?.follow_up_on?.slice(0, 10) ?? "");
+  const [claim, setClaim] = useState(false);
+  return (
+    <details className="rounded-xl border bg-muted/30 p-4">
+      <summary className="cursor-pointer font-medium">
+        Staff follow-up /{" "}
+        {followup?.owner_id === userId
+          ? "Assigned to you"
+          : followup?.owner_id
+            ? "Assigned to another staff member"
+            : "Unassigned"}
+        {followup?.follow_up_on
+          ? ` / ${followup.follow_up_on.slice(0, 10) <= today ? "Due" : "Follow up"} ${followup.follow_up_on.slice(0, 10)}`
+          : ""}
+      </summary>
+      <div className="mt-4 grid gap-4">
+        <p className="text-sm text-muted-foreground">
+          Internal notes are visible only to staff. Saving does not contact the customer.
+        </p>
+        <label className="flex items-center gap-3 text-sm">
+          <input type="checkbox" checked={claim} onChange={(e) => setClaim(e.target.checked)} />
+          Assign this enquiry to me
+        </label>
+        <label className="grid gap-2 text-sm">
+          Follow-up date (Jamaica)
+          <input
+            className="min-h-11 w-full min-w-0 rounded-lg border bg-background p-3"
+            type="date"
+            value={due}
+            onChange={(e) => setDue(e.target.value)}
+          />
+        </label>
+        <label className="grid gap-2 text-sm">
+          Internal notes
+          <textarea
+            className="min-h-28 w-full rounded-lg border bg-background p-3"
+            maxLength={5000}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Next step, customer preferences or handover notes"
+          />
+        </label>
+        <Button
+          type="button"
+          disabled={busy}
+          onClick={() =>
+            void save("save_enquiry_followup", {
+              p_id: enquiryId,
+              p_claim: claim,
+              p_due: due || null,
+              p_notes: notes,
+            })
+          }
+        >
+          Save follow-up
+        </Button>
+      </div>
+    </details>
   );
 }
