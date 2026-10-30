@@ -1,3 +1,4 @@
+import { StaffCalendar } from "@/components/staff-calendar";
 import { inDailyView, staffDateTime, statusLabel, type DailyView } from "@/lib/staff-workflow";
 import { venueDate } from "@/lib/booking";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -70,6 +71,7 @@ function Operations() {
         "quotes",
         "quote_revisions",
         "enquiry_followups",
+        "closures",
       ] as const;
       const results = await Promise.all(tables.map((t) => db().from(t).select("*")));
       results.forEach((r) => {
@@ -85,6 +87,7 @@ function Operations() {
         quotes: results[6]!.data!,
         revisions: results[7]!.data!,
         followups: results[8]!.data!,
+        closures: results[9]!.data!,
       };
     },
     refetchInterval: 30_000,
@@ -116,7 +119,8 @@ function Operations() {
           `${b.reference} ${b.customer_name} ${b.customer_email} ${b.service_name}`
             .toLowerCase()
             .includes(search.toLowerCase())) &&
-        (!date ||
+        (view === "calendar" ||
+          !date ||
           new Date(b.starts_at).toLocaleDateString("en-CA", { timeZone: "America/Jamaica" }) ===
             date) &&
         (!brand || b.brand === brand) &&
@@ -285,7 +289,7 @@ function Operations() {
           {view === "list" ? "Calendar" : "List"}
         </Button>
       </div>
-      {data.data && list.length === 0 && (
+      {view === "list" && data.data && list.length === 0 && (
         <div className="surface-panel rounded-2xl p-8 text-center">
           <h3 className="font-semibold">
             {data.data.bookings.length
@@ -299,67 +303,45 @@ function Operations() {
           </p>
         </div>
       )}
-      <div className={view === "calendar" ? "grid gap-3 md:grid-cols-3" : "space-y-3"}>
-        {view === "list"
-          ? list.map((b) => (
-              <button
-                key={b.id}
-                data-testid="booking-card"
-                className="surface-panel block w-full rounded-2xl p-4 text-left transition hover:border-primary focus-visible:outline-2 focus-visible:outline-primary"
-                onClick={() => setSelected(b)}
-              >
-                <p className="font-semibold">
-                  {new Date(b.starts_at).toLocaleDateString("en-GB", {
-                    timeZone: "America/Jamaica",
-                  })}{" "}
-                  · {venueTime(b.starts_at)}–{venueTime(b.ends_at)} · {b.service_name}
-                </p>
-                <p>
-                  {b.reference} · {b.customer_name} · {statusLabel(b.booking_state)} ·{" "}
-                  {statusLabel(b.payment_state)} · {formatMoney(b.total_minor - b.paid_minor)} due
-                </p>
-              </button>
-            ))
-          : [
-              ...new Set(
-                list.map((b) =>
-                  new Date(b.starts_at).toLocaleDateString("en-CA", {
-                    timeZone: "America/Jamaica",
-                  }),
-                ),
-              ),
-            ].map((day) => (
-              <section key={day} className="space-y-3">
-                <h2 className="font-semibold">{day}</h2>
-                {list
-                  .filter(
-                    (b) =>
-                      new Date(b.starts_at).toLocaleDateString("en-CA", {
-                        timeZone: "America/Jamaica",
-                      }) === day,
-                  )
-                  .map((b) => (
-                    <button
-                      key={b.id}
-                      data-testid="booking-card"
-                      className="surface-panel block w-full rounded-2xl p-4 text-left transition hover:border-primary focus-visible:outline-2 focus-visible:outline-primary"
-                      onClick={() => setSelected(b)}
-                    >
-                      <p className="font-semibold">
-                        {new Date(b.starts_at).toLocaleDateString("en-GB", {
-                          timeZone: "America/Jamaica",
-                        })}{" "}
-                        · {venueTime(b.starts_at)}–{venueTime(b.ends_at)} · {b.service_name}
-                      </p>
-                      <p>
-                        {b.reference} · {b.customer_name} · {statusLabel(b.booking_state)} ·{" "}
-                        {statusLabel(b.payment_state)} · {formatMoney(b.total_minor - b.paid_minor)}{" "}
-                        due
-                      </p>
-                    </button>
-                  ))}
-              </section>
-            ))}
+      <div className="space-y-3">
+        {view === "list" ? (
+          list.map((b) => (
+            <button
+              key={b.id}
+              data-testid="booking-card"
+              className="surface-panel block w-full rounded-2xl p-4 text-left transition hover:border-primary focus-visible:outline-2 focus-visible:outline-primary"
+              onClick={() => setSelected(b)}
+            >
+              <p className="font-semibold">
+                {new Date(b.starts_at).toLocaleDateString("en-GB", {
+                  timeZone: "America/Jamaica",
+                })}{" "}
+                · {venueTime(b.starts_at)}–{venueTime(b.ends_at)} · {b.service_name}
+              </p>
+              <p>
+                {b.reference} · {b.customer_name} · {statusLabel(b.booking_state)} ·{" "}
+                {statusLabel(b.payment_state)} · {formatMoney(b.total_minor - b.paid_minor)} due
+              </p>
+            </button>
+          ))
+        ) : (
+          <StaffCalendar
+            bookings={list}
+            date={date || today}
+            onDate={setDate}
+            onSelect={setSelected}
+            closures={(data.data?.closures ?? []).filter(
+              (c) =>
+                (!resource || !c.resource_id || c.resource_id === resource) &&
+                (!brand ||
+                  !c.resource_id ||
+                  catalog.data?.services.some(
+                    (s) => s.brand === brand && s.resourceIds.includes(c.resource_id),
+                  )),
+            )}
+            resources={data.data?.resources ?? []}
+          />
+        )}
       </div>
       <Dialog
         open={!!selected}

@@ -518,3 +518,31 @@ test("staff daily overview and booking panel are usable on mobile", async ({ pag
   await page.getByRole("button", { name: "Close", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
+
+test("staff calendar navigates days and weeks and opens booking details on mobile", async ({
+  page,
+}) => {
+  await signIn(page, "staff@example.invalid");
+  await page.goto("/admin");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Calendar", exact: true }).click();
+  const calendar = page.getByRole("region", { name: "Staff booking calendar", exact: true });
+  await expect(calendar.getByRole("heading", { name: "Week ahead" })).toBeVisible();
+  await calendar.getByRole("button", { name: "Day", exact: true }).click();
+  await calendar.getByRole("button", { name: "Previous", exact: true }).click();
+  await calendar.getByRole("button", { name: "Previous", exact: true }).click();
+  const booking = calendar.getByTestId("booking-card").filter({ hasText: "CC-TEST-NOSHOW" });
+  await expect(booking).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: ".cache/staff-calendar-mobile.png", fullPage: true });
+  await booking.click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await calendar.getByRole("button", { name: "Today", exact: true }).click();
+  await calendar.getByRole("button", { name: "Week", exact: true }).click();
+  await expect(calendar.getByRole("heading", { level: 4 })).toHaveCount(7);
+  await calendar.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(
+    calendar.getByText("No bookings or blocked time in this view.").first(),
+  ).toBeVisible();
+});
