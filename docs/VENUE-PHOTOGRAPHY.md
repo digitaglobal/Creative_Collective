@@ -37,3 +37,12 @@ Source gallery: <https://createatstudiod.com/>. Its January 2026 interior photog
 The lounge asset comes from <https://createatstudiod.com/prices/> and is explicitly labelled as an architectural rendering in the app.
 
 These images do not approve capacities, equipment, service availability or shared-room relationships. Recording booths and ancillary services without a clearly matched source image retain their pending-photo fallback. Booking activation, email setup and business approvals remain unchanged.
+
+## Pricing images requested on 30 October 2026
+
+The owner requested the images shown in the Studio D rental and recording booth pricing slides at https://createatstudiod.com/prices/. These override the previous rental fallback and add a recording booth fallback. The brand gallery retains the venue interior photographs.
+
+- studio-pricing-rental.jpg: https://createatstudiod.com/wp-content/uploads/2024/07/shutterstock_2386143311.jpg
+- studio-pricing-booth.jpg: https://createatstudiod.com/wp-content/uploads/2024/07/shutterstock_2486951497-e1721922073763.jpg
+
+These are the pricing page's illustrative stock images, not verified photographs of the actual rooms or evidence of included equipment. Both images were visually inspected. Original downloaded bytes are preserved.

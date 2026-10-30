@@ -65,7 +65,14 @@ const servicePhotos: Record<string, VenuePhoto> = {
   "svc-enigma-sleeper-pod": sleeper,
   "svc-enigma-private-pod": privatePod,
   "svc-enigma-locker": lockers,
-  "svc-studio-rental": studio,
+  "svc-studio-rental": photo(
+    "studio-pricing-rental.jpg",
+    "Photography studio setup pictured on Studio D�s pricing page",
+  ),
+  "svc-studio-recording-booth": photo(
+    "studio-pricing-booth.jpg",
+    "Recording microphone pictured on Studio D�s recording booth pricing section",
+  ),
   "svc-studio-lounge": studioLounge,
 };
 export function servicePhoto(service: Service): VenuePhoto | undefined {
