@@ -148,7 +148,11 @@ function Operations() {
         </Button>
       </header>
       <AdminWalkthrough />
-      <nav aria-label="Daily overview" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <nav
+        data-tour="overview"
+        aria-label="Daily overview"
+        className="grid grid-cols-2 gap-3 lg:grid-cols-4"
+      >
         {(
           [
             ["approval", "Awaiting approval", "Review new requests"],
@@ -215,7 +219,10 @@ function Operations() {
         </p>
       )}
       {data.isLoading && <p role="status">Loading operations…</p>}
-      <div className="surface-panel grid gap-4 rounded-2xl p-4 sm:grid-cols-2 lg:grid-cols-4 [&_label]:grid [&_label]:gap-1 [&_input]:m-0 [&_input]:min-w-0 [&_input]:w-full [&_select]:min-w-0 [&_select]:rounded-md [&_select]:border [&_select]:bg-background [&_select]:p-2">
+      <div
+        data-tour="filters"
+        className="surface-panel grid gap-4 rounded-2xl p-4 sm:grid-cols-2 lg:grid-cols-4 [&_label]:grid [&_label]:gap-1 [&_input]:m-0 [&_input]:min-w-0 [&_input]:w-full [&_select]:min-w-0 [&_select]:rounded-md [&_select]:border [&_select]:bg-background [&_select]:p-2"
+      >
         <label>
           Search
           <input
@@ -305,7 +312,7 @@ function Operations() {
           </p>
         </div>
       )}
-      <div className="space-y-3">
+      <div data-tour="bookings" className="space-y-3 min-h-20">
         {view === "list" ? (
           list.map((b) => (
             <button
@@ -367,7 +374,10 @@ function Operations() {
           {message && selected && <p role="status">{message}</p>}
         </DialogContent>
       </Dialog>
-      <section className="surface-panel min-w-0 space-y-4 rounded-2xl p-4 sm:p-6 [&_p]:break-words">
+      <section
+        data-tour="attention"
+        className="surface-panel min-w-0 space-y-4 rounded-2xl p-4 sm:p-6 [&_p]:break-words"
+      >
         <h2 className="text-xl font-semibold">Needs attention</h2>
         {data.data &&
           !data.data.bookings.some(
@@ -454,7 +464,7 @@ function Operations() {
             </div>
           ))}
       </section>
-      <section className="space-y-3">
+      <section data-tour="enquiries" className="space-y-3">
         <h2 className="text-xl font-semibold">Enquiries and quotes</h2>
         <div className="grid gap-4 rounded-2xl border bg-muted/30 p-4 sm:grid-cols-3 [&_label]:grid [&_label]:gap-2 [&_input]:ml-0 [&_input]:w-full [&_select]:ml-0 [&_select]:min-h-11">
           <label>
@@ -688,14 +698,14 @@ function Operations() {
           ))}
       </section>
       <StaffCreate run={run} busy={busy} />
-      <details className="surface-panel rounded-2xl p-5">
+      <details data-tour="insights" className="surface-panel rounded-2xl p-5">
         <summary className="cursor-pointer font-semibold">Booking insights</summary>
         <div className="pt-4">
           <BookingFunnel />
         </div>
       </details>
       {auth.role === "administrator" && (
-        <details className="surface-panel rounded-2xl p-5">
+        <details data-tour="settings" className="surface-panel rounded-2xl p-5">
           <summary className="cursor-pointer font-semibold">Administrator settings</summary>
           <div className="pt-4">
             <AdminConfiguration />
@@ -729,7 +739,7 @@ function StaffCreate({
   const [serviceId, setServiceId] = useState("");
   const service = catalog.data?.services.find((s) => s.id === serviceId);
   return (
-    <details className="surface-panel p-5">
+    <details data-tour="create" className="surface-panel p-5">
       <summary>Create booking for customer</summary>
       <form
         className="space-y-3 pt-4"

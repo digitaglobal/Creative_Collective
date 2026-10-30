@@ -1,3 +1,4 @@
+import { PlatformTour } from "@/components/admin-walkthrough";
 import { useAuth } from "@/hooks/use-auth";
 import { db } from "@/lib/supabase";
 import { useCatalog } from "@/hooks/use-catalog";
@@ -152,6 +153,7 @@ export function SiteLayout({ children }: { children: ReactNode }) {
       <SiteHeader />
       <main className="flex-1">{children}</main>
       <SiteFooter />
+      <PlatformTour />
     </div>
   );
 }
