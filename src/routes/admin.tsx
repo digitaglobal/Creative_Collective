@@ -1,4 +1,5 @@
 import { StaffCalendar } from "@/components/staff-calendar";
+import { AdminWalkthrough } from "@/components/admin-walkthrough";
 import { inDailyView, staffDateTime, statusLabel, type DailyView } from "@/lib/staff-workflow";
 import { venueDate } from "@/lib/booking";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -146,6 +147,7 @@ function Operations() {
           Refresh dashboard
         </Button>
       </header>
+      <AdminWalkthrough />
       <nav aria-label="Daily overview" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {(
           [
