@@ -144,7 +144,8 @@ function QuoteCard({
   return (
     <div className="surface-panel space-y-4 p-5">
       <form
-        className="space-y-3"
+        id={`quote-${q.id}`}
+        className="scroll-mt-40 space-y-3"
         onSubmit={async (event) => {
           event.preventDefault();
           if (!canAccept || busy) return;

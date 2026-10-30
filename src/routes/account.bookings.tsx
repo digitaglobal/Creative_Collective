@@ -220,7 +220,7 @@ function Bookings() {
       </details>
       {message && <p role="status">{message}</p>}
       {profile.error && <p role="alert">{profile.error.message}</p>}
-      <div className="flex gap-3">
+      <div id="my-reservations" className="scroll-mt-40 flex gap-3">
         {["upcoming", "past"].map((t) => (
           <Button
             aria-pressed={tab === t}

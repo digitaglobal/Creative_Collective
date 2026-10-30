@@ -417,9 +417,17 @@ test("customer enquiry becomes a reviewed quote and a saved reservation", async 
   await page.goto("/account/bookings");
   const quote = page.locator("form").filter({ hasText: "Pay on arrival e2e" });
   await expect(quote.getByText("Awaiting your decision", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Refresh enquiries", exact: true }).click();
+  await expect(enquiries.getByRole("link", { name: "Review quote v1", exact: true })).toBeVisible();
+  await enquiries.getByText("Quote and revision history (1)", { exact: true }).click();
+  await expect(
+    enquiries.getByRole("link", { name: "View quote v1 details", exact: true }),
+  ).toHaveAttribute("href", /^#quote-/);
+
   await expect(quote.getByText("Tax (15%)", { exact: true })).toBeVisible();
   await expect(quote.getByText("JMD 13,800.00", { exact: true })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
+  await enquiries.screenshot({ path: ".cache/enquiry-progress-mobile.png" });
   await quote.scrollIntoViewIfNeeded();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: ".cache/quote-review-mobile.png" });
