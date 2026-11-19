@@ -21,6 +21,7 @@ export function AvailabilityWeek({
   extras,
   enabled,
   sundayClosed,
+  hideDate = false,
 }: {
   days: string[];
   date: string;
@@ -30,6 +31,7 @@ export function AvailabilityWeek({
   extras: string[];
   enabled: boolean;
   sundayClosed: boolean;
+  hideDate?: boolean;
 }) {
   const index = Math.max(0, days.indexOf(date));
   const offset = Math.floor(index / 7) * 7;
@@ -55,20 +57,22 @@ export function AvailabilityWeek({
         <h2 className="font-semibold">Choose a date</h2>
         <span className="text-xs text-muted-foreground">Jamaica time</span>
       </div>
-      <label className="grid gap-2 text-sm font-medium">
-        Jump to a date
-        <input
-          aria-label="Booking date"
-          type="date"
-          min={days[0]}
-          max={days.at(-1)}
-          value={date}
-          onChange={(e) => {
-            if (days.includes(e.target.value)) onDate(e.target.value);
-          }}
-          className="min-h-11 min-w-0 w-full rounded-lg border bg-background p-2"
-        />
-      </label>
+      {!hideDate && (
+        <label className="grid gap-2 text-sm font-medium">
+          Jump to a date
+          <input
+            aria-label="Booking date"
+            type="date"
+            min={days[0]}
+            max={days.at(-1)}
+            value={date}
+            onChange={(e) => {
+              if (days.includes(e.target.value)) onDate(e.target.value);
+            }}
+            className="min-h-11 min-w-0 w-full rounded-lg border bg-background p-2"
+          />
+        </label>
+      )}
       <div className="flex items-center justify-between gap-2">
         <Button
           type="button"

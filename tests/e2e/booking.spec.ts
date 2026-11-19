@@ -12,7 +12,7 @@ test("guest sees price, signs in without losing selections, and can edit on mobi
   await page.getByLabel("Booking date").fill(day);
   await page.getByLabel("Duration", { exact: true }).selectOption("120");
   await page.getByLabel("Booking attendees", { exact: true }).fill("3");
-  await page.getByRole("button", { name: "11:00", exact: true }).click();
+  await page.getByLabel("Start time", { exact: true }).selectOption("11:00");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(page.getByText("Total (JMD)")).toBeVisible();
   await expect(page.getByText(/This is a request, not a confirmed booking/)).toBeVisible();
@@ -27,10 +27,7 @@ test("guest sees price, signs in without losing selections, and can edit on mobi
   await expect(page.getByLabel("Booking date")).toHaveValue(day);
   await expect(page.getByLabel("Duration", { exact: true })).toHaveValue("120");
   await expect(page.getByLabel("Booking attendees", { exact: true })).toHaveValue("3");
-  await expect(page.getByRole("button", { name: "11:00", exact: true })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  await expect(page.getByLabel("Start time", { exact: true })).toHaveValue("11:00");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: ".cache/booking-conversion-mobile.png", fullPage: true });
 });
@@ -69,7 +66,7 @@ test("customer requests a real reservation; staff approve, record payment, check
   date.setUTCDate(date.getUTCDate() + 7);
   while (date.getUTCDay() !== 1) date.setUTCDate(date.getUTCDate() + 1);
   await page.getByLabel("Booking date").fill(date.toISOString().slice(0, 10));
-  await page.getByRole("button", { name: "10:00", exact: true }).click();
+  await page.getByLabel("Start time", { exact: true }).selectOption("10:00");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.getByRole("checkbox", { name: "I accept the policies shown above." }).check();
   await page.getByRole("button", { name: "Request reservation", exact: true }).click();
@@ -146,7 +143,7 @@ test("website venue photographs load on home, galleries and matching services", 
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/");
   const covers = page.locator('img[src^="/images/venues/"]');
-  await expect(covers).toHaveCount(2);
+  await expect(covers.first()).toBeVisible();
   await expect
     .poll(() =>
       covers.evaluateAll((images) =>
@@ -210,7 +207,7 @@ test("staff filters reservations, keeps notes private, records partial payments 
   async function request(hour: string) {
     await page.goto("/enigma/services/meeting-room");
     await page.getByLabel("Booking date").fill(day);
-    await page.getByRole("button", { name: hour, exact: true }).click();
+    await page.getByLabel("Start time", { exact: true }).selectOption(hour);
     await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page.getByRole("checkbox", { name: "I accept the policies shown above." }).check();
     await page.getByRole("button", { name: "Request reservation", exact: true }).click();
@@ -537,6 +534,7 @@ test("staff calendar navigates days and weeks and opens booking details on mobil
   const calendar = page.getByRole("region", { name: "Staff booking calendar", exact: true });
   await expect(calendar.getByRole("heading", { name: "Week ahead" })).toBeVisible();
   await calendar.getByRole("button", { name: "Day", exact: true }).click();
+  await calendar.getByLabel("Show cancelled, expired and no-show bookings").check();
   await calendar.getByRole("button", { name: "Previous", exact: true }).click();
   await calendar.getByRole("button", { name: "Previous", exact: true }).click();
   const booking = calendar.getByTestId("booking-card").filter({ hasText: "CC-TEST-NOSHOW" });

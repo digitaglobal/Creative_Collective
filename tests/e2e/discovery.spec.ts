@@ -4,7 +4,7 @@ test("find and compare spaces across venues, preserve URL state and recover from
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("link", { name: "Find and compare spaces" }).click();
+  await page.getByRole("link", { name: "Find a space", exact: true }).first().click();
   await expect(page.getByRole("heading", { name: "Find your space", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Printing", exact: true })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Meeting room", exact: true })).toBeVisible();

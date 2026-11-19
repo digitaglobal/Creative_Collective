@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { z } from "zod";
 import { useCatalog } from "@/hooks/use-catalog";
+import { useDateAvailability } from "@/hooks/use-date-availability";
+import { venueDate } from "@/lib/booking";
 import { SiteLayout } from "@/components/site-chrome";
 import { VenueImage } from "@/components/venue-image";
 import { Button } from "@/components/ui/button";
@@ -11,6 +13,11 @@ import type { Service } from "@/data/catalog";
 
 export const Route = createFileRoute("/spaces")({
   validateSearch: z.object({
+    date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional()
+      .catch(undefined),
     purpose: z
       .enum(["workspace", "meeting", "studio", "recording", "lounge"])
       .optional()
@@ -32,10 +39,14 @@ export const Route = createFileRoute("/spaces")({
   component: Spaces,
 });
 
-function DetailsLink({ service }: { service: Service }) {
+function DetailsLink({ service, date }: { service: Service; date?: string | undefined }) {
   return (
     <Button asChild className="w-full">
-      <Link to="/$brand/services/$slug" params={{ brand: service.brand, slug: service.slug }}>
+      <Link
+        to="/$brand/services/$slug"
+        params={{ brand: service.brand, slug: service.slug }}
+        search={{ date }}
+      >
         View details / enquire<span className="sr-only"> about {service.name}</span>
       </Link>
     </Button>
@@ -60,7 +71,11 @@ function Spaces() {
   const navigate = Route.useNavigate();
   const catalog = useCatalog();
   const services = catalog.data?.services ?? [];
-  const matches = matchingSpaces(services, filters);
+  const candidates = matchingSpaces(services, filters);
+  const availability = useDateAvailability(candidates, filters.date, Boolean(catalog.data?.ready));
+  const matches = filters.date
+    ? candidates.filter((service) => availability.data?.[service.id])
+    : candidates;
   const selected = comparisonSpaces(services, filters.compare);
   const update = (next: Partial<typeof filters>) =>
     void navigate({ search: { ...filters, ...next }, replace: true });
@@ -78,7 +93,7 @@ function Spaces() {
   return (
     <SiteLayout>
       <div className="mx-auto w-full min-w-0 max-w-7xl px-4 pb-28 pt-10">
-        <h1 className="text-3xl font-bold sm:text-4xl">Find your space</h1>
+        <h1 className="text-4xl sm:text-5xl">Find your space</h1>
         <p className="mt-3 max-w-2xl text-muted-foreground">
           Explore Enigma and Studio D together. Choose what you need, then compare up to three
           spaces.
@@ -88,9 +103,24 @@ function Spaces() {
           use listed capacities; confirm capacity, equipment and suitability with the venue before
           making plans.
         </p>
+        <label className="block mt-5">
+          Available date (Jamaica time)
+          <input
+            className="ml-3 rounded border bg-background p-2"
+            type="date"
+            min={venueDate()}
+            value={filters.date ?? ""}
+            onChange={(event) => update({ date: event.target.value || undefined })}
+          />
+        </label>
+        {filters.date && (
+          <p className="mt-2 text-sm">
+            Availability is for each space’s minimum booking duration without extras.
+          </p>
+        )}
         <section
           aria-label="Filter spaces"
-          className="surface-panel my-6 grid gap-4 p-4 sm:grid-cols-3"
+          className="surface-panel my-6 grid items-end gap-4 p-5 sm:grid-cols-3"
         >
           <label>
             What do you need?
@@ -164,12 +194,25 @@ function Spaces() {
           </label>
           <Button
             variant="outline"
-            onClick={() => update({ purpose: undefined, venue: undefined, people: undefined })}
+            onClick={() =>
+              update({ purpose: undefined, venue: undefined, people: undefined, date: undefined })
+            }
           >
             Clear filters
           </Button>
         </section>
-        {catalog.isLoading ? (
+        {filters.date && !catalog.isLoading && !catalog.data?.ready ? (
+          <p role="status">
+            Availability search is not currently available. Clear the date to browse spaces.
+          </p>
+        ) : filters.date && availability.isLoading ? (
+          <p role="status">Checking availability…</p>
+        ) : filters.date && availability.error ? (
+          <div role="alert">
+            Could not check availability.{" "}
+            <Button onClick={() => void availability.refetch()}>Try again</Button>
+          </div>
+        ) : catalog.isLoading ? (
           <p role="status">Loading spaces…</p>
         ) : catalog.error ? (
           <div role="alert">
@@ -209,17 +252,17 @@ function Spaces() {
                     <VenueImage
                       photo={photo}
                       alt={service.imageAlt}
-                      className="h-48 rounded-none"
+                      className="h-56 rounded-none"
                     />
                     {photo?.caption && (
                       <p className="px-5 pt-2 text-xs text-muted-foreground">{photo.caption}</p>
                     )}
                     <div className="flex flex-1 flex-col gap-3 p-5">
-                      <p className="text-xs font-semibold uppercase">
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                         {service.brand === "enigma" ? "Enigma" : "Studio D"} ·{" "}
                         {purposes[spacePurpose(service)!]}
                       </p>
-                      <h2 className="text-xl font-semibold">{service.name}</h2>
+                      <h2 className="text-2xl">{service.name}</h2>
                       <p className="text-sm text-muted-foreground">{service.useCase}</p>
                       <p className="text-sm">
                         Listed capacity: up to {service.maxAttendees} · subject to confirmation
@@ -235,7 +278,7 @@ function Spaces() {
                           : "Enquiries welcome · online reservations pending approval."}
                       </p>
                       <div className="mt-auto space-y-3 pt-2">
-                        <DetailsLink service={service} />
+                        <DetailsLink service={service} date={filters.date} />
                         <label className="flex min-h-11 items-center gap-3 text-sm">
                           <input
                             type="checkbox"
@@ -340,7 +383,10 @@ function Spaces() {
                       label: "Accessibility / facilities",
                       render: (s: Service) => s.facilitiesStatus || "Pending venue confirmation",
                     },
-                    { label: "Next step", render: (s: Service) => <DetailsLink service={s} /> },
+                    {
+                      label: "Next step",
+                      render: (s: Service) => <DetailsLink service={s} date={filters.date} />,
+                    },
                   ].map((row) => (
                     <tr key={row.label} className="border-t">
                       <th scope="row" className="p-4 align-top">

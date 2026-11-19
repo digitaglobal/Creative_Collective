@@ -3,17 +3,38 @@ import { useAuth } from "@/hooks/use-auth";
 import { db } from "@/lib/supabase";
 import { useCatalog } from "@/hooks/use-catalog";
 import { Link } from "@tanstack/react-router";
+import { LogOut, UserRound } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { DemoBanner } from "@/components/demo-banner";
 import { VENUE_TIMEZONE_LABEL, brands } from "@/data/catalog";
 
-export function SiteHeader() {
+function HomeBrand({ light = false }: { light?: boolean }) {
+  return (
+    <span className={light ? "psd-brand-mark psd-brand-mark-light" : "psd-brand-mark"}>
+      <img src="/images/home/brand-symbol.png" alt="" aria-hidden="true" />
+      <span>The Creative Collective</span>
+    </span>
+  );
+}
+
+export function SiteHeader({ home = false }: { home?: boolean }) {
   const auth = useAuth();
   const catalog = useCatalog();
-  const liveBrands = catalog.data?.brands.length ? catalog.data.brands : brands;
+  const availableBrands = catalog.data?.brands.length ? catalog.data.brands : brands;
+  const liveBrands = home
+    ? [...availableBrands].sort(
+        (a, b) => Number(b.slug === "studio-d") - Number(a.slug === "studio-d"),
+      )
+    : availableBrands;
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur">
+    <header
+      className={
+        home
+          ? "psd-header border-b border-border"
+          : "sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur"
+      }
+    >
       <DemoBanner />
       {catalog.error && (
         <p role="alert" className="bg-muted px-4 py-2 text-sm">
@@ -25,15 +46,23 @@ export function SiteHeader() {
           Reservations await venue setup and business approval.
         </p>
       )}
-      <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3">
+      <div className="site-header-inner mx-auto flex items-center gap-4 py-4">
         <Link to="/" className="flex flex-col leading-tight tracking-tight">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-            The home of Enigma + Studio D
-          </span>
-          <span className="text-base font-extrabold">Creative Collective</span>
+          {home ? (
+            <HomeBrand />
+          ) : (
+            <>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                The home of Enigma + Studio D
+              </span>
+              <span className="site-wordmark font-serif font-bold tracking-tight">
+                Creative Collective
+              </span>
+            </>
+          )}
         </Link>
         <nav aria-label="Brands" className="ml-4 hidden gap-1 md:flex">
-          <Link to="/spaces" className="rounded-md px-3 py-2 text-sm hover:bg-muted">
+          <Link to="/spaces" className="rounded-lg px-3 py-2 text-sm font-semibold hover:bg-muted">
             Find a space
           </Link>
           {liveBrands.map((b) => (
@@ -55,12 +84,13 @@ export function SiteHeader() {
           {auth.user ? (
             <Button
               size="sm"
+              className={home ? "psd-header-signout" : undefined}
               onClick={async () => {
                 await db().auth.signOut();
                 window.location.assign("/login");
               }}
             >
-              Sign out
+              Sign out {home && <LogOut aria-hidden="true" />}
             </Button>
           ) : (
             <Button asChild size="sm">
@@ -69,7 +99,9 @@ export function SiteHeader() {
           )}
           {auth.staff && (
             <Button asChild size="sm" variant="outline">
-              <Link to="/admin">Staff</Link>
+              <Link to="/admin" className={home ? "psd-header-staff" : undefined}>
+                Staff {home && <UserRound aria-hidden="true" />}
+              </Link>
             </Button>
           )}
         </div>
@@ -88,71 +120,138 @@ export function SiteHeader() {
   );
 }
 
-export function SiteFooter() {
-  return (
-    <footer className="mt-16 border-t border-border bg-surface">
-      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-4">
-        <div>
-          <p className="font-extrabold">Creative Collective</p>
-          <p className="mt-1 text-sm text-muted-foreground">Workspace and production, together.</p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Booking times are shown in {VENUE_TIMEZONE_LABEL}.
+export function SiteFooter({ home = false }: { home?: boolean }) {
+  const auth = useAuth();
+  if (home)
+    return (
+      <footer className="psd-footer">
+        <div className="psd-wrap">
+          <div className="psd-footer-top">
+            <div>
+              <Link to="/" aria-label="Creative Collective home">
+                <HomeBrand light />
+              </Link>
+              <p>
+                Workspace and production, together. Booking times are shown in Jamaica time
+                (America/Jamaica).
+              </p>
+            </div>
+            <nav aria-label="Explore">
+              <strong>Explore</strong>
+              <Link to="/spaces">Find a space</Link>
+              <Link to="/$brand" params={{ brand: "enigma" }}>
+                Enigma
+              </Link>
+              <Link to="/$brand" params={{ brand: "studio-d" }}>
+                Studio D
+              </Link>
+            </nav>
+            <nav aria-label="Bookings">
+              <strong>Bookings</strong>
+              <Link to="/account/bookings">My bookings</Link>
+              <Link to="/policies">Booking policies</Link>
+            </nav>
+            <nav aria-label="Support">
+              <strong>Support</strong>
+              <Link to="/help">Help &amp; enquiries</Link>
+            </nav>
+          </div>
+          <p className="psd-footer-note">
+            Reservations require staff approval. Pay in person after approval. Prices are in JMD;
+            applicable tax appears in your booking summary. Longer rentals are arranged by quote.
+          </p>
+          <p className="psd-copyright">
+            ©Creative Collective {new Date().getFullYear()}. All rights reserved
           </p>
         </div>
-        <nav aria-label="Spaces" className="text-sm">
-          <p className="font-medium">Spaces</p>
-          <ul className="mt-2 space-y-1.5 text-muted-foreground">
+      </footer>
+    );
+  return (
+    <footer className="site-footer">
+      <div className="site-footer-main">
+        <div className="site-footer-brand">
+          <Link to="/" className="site-footer-wordmark">
+            Creative
+            <br />
+            Collective<span aria-hidden="true">.</span>
+          </Link>
+          <p>
+            Space to focus. Room to create.
+            <br />
+            Discover Enigma and Studio D.
+          </p>
+          <Link to="/spaces" className="site-footer-explore">
+            Find your next space <span aria-hidden="true">↗</span>
+          </Link>
+        </div>
+        <nav aria-label="Spaces">
+          <h2>Our spaces</h2>
+          <ul>
+            <li>
+              <Link to="/spaces">Explore all spaces</Link>
+            </li>
             {brands.map((b) => (
               <li key={b.slug}>
-                <Link to="/$brand" params={{ brand: b.slug }} className="hover:text-foreground">
+                <Link to="/$brand" params={{ brand: b.slug }}>
                   {b.name}
                 </Link>
               </li>
             ))}
           </ul>
         </nav>
-        <nav aria-label="Support" className="text-sm">
-          <p className="font-medium">Support</p>
-          <ul className="mt-2 space-y-1.5 text-muted-foreground">
+        <nav aria-label="Account">
+          <h2>Your visit</h2>
+          <ul>
             <li>
-              <Link to="/help" className="hover:text-foreground">
-                Help
-              </Link>
+              <Link to="/account/bookings">My bookings</Link>
             </li>
             <li>
-              <Link to="/policies" className="hover:text-foreground">
-                Policies
-              </Link>
+              <Link to="/login">Sign in</Link>
             </li>
+            <li>
+              <Link to="/help">Booking help</Link>
+            </li>
+            {auth.staff && (
+              <li>
+                <Link to="/admin">Staff operations</Link>
+              </li>
+            )}
           </ul>
         </nav>
-        <nav aria-label="Staff" className="text-sm">
-          <p className="font-medium">Staff</p>
-          <ul className="mt-2 space-y-1.5 text-muted-foreground">
+        <nav aria-label="Support">
+          <h2>Need a hand?</h2>
+          <ul>
             <li>
-              <Link to="/admin" className="hover:text-foreground">
-                Operations dashboard
-              </Link>
+              <Link to="/help">Help & enquiries</Link>
+            </li>
+            <li>
+              <Link to="/policies">Policies</Link>
             </li>
           </ul>
+          <p className="site-footer-time">
+            All booking times in
+            <br />
+            {VENUE_TIMEZONE_LABEL}
+          </p>
         </nav>
       </div>
-      <div className="border-t border-border">
-        <p className="mx-auto max-w-7xl px-4 py-4 text-xs text-muted-foreground">
+      <div className="site-footer-bottom">
+        <p>
           Reservations require staff approval. Pay in person after approval. Prices are in JMD;
           applicable tax appears in your booking summary. Longer rentals are arranged by quote.
         </p>
+        <span>© {new Date().getFullYear()} Creative Collective</span>
       </div>
     </footer>
   );
 }
 
-export function SiteLayout({ children }: { children: ReactNode }) {
+export function SiteLayout({ children, home = false }: { children: ReactNode; home?: boolean }) {
   return (
     <div className="flex min-h-screen flex-col">
-      <SiteHeader />
+      <SiteHeader home={home} />
       <main className="flex-1">{children}</main>
-      <SiteFooter />
+      <SiteFooter home={home} />
       <PlatformTour />
     </div>
   );

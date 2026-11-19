@@ -96,6 +96,7 @@ export function EnquiryForm({
     );
   return (
     <form
+      id="enquiry"
       className="space-y-3"
       onSubmit={async (e) => {
         e.preventDefault();
@@ -165,6 +166,15 @@ export function EnquiryForm({
           <input
             name={name}
             type={type}
+            placeholder={
+              name === "name"
+                ? "Name"
+                : name === "email"
+                  ? "Email address"
+                  : name === "phone"
+                    ? "Phone number"
+                    : undefined
+            }
             required
             disabled={auth.loading || busy}
             value={value(name!)}
@@ -214,6 +224,7 @@ export function EnquiryForm({
         Equipment needs and other details
         <textarea
           name="message"
+          placeholder="Description"
           disabled={auth.loading || busy}
           maxLength={4500}
           className="mt-1 w-full rounded border bg-background p-2"

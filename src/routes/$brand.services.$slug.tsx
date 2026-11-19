@@ -1,26 +1,15 @@
 import { AvailabilityWeek } from "@/components/availability-week";
-import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 import { trackBookingStep } from "@/lib/booking-analytics";
 import { SiteLayout } from "@/components/site-chrome";
 import { VenueImage } from "@/components/venue-image";
-import { servicePhoto } from "@/data/venue-media";
+import { brandPhotos, servicePhoto } from "@/data/venue-media";
 import { DraftBadge } from "@/components/status-badges";
-import {
-  BookingStepper,
-  InclusionList,
-  PriceBreakdown,
-  PublishedPriceList,
-} from "@/components/booking-pieces";
+import { InclusionList, PriceBreakdown, PublishedPriceList } from "@/components/booking-pieces";
 import { Button } from "@/components/ui/button";
-import {
-  bookingRules,
-  getBrand,
-  getServiceBySlug,
-  resourceNames,
-  VENUE_TIMEZONE_LABEL,
-} from "@/data/catalog";
+import { bookingRules, getBrand, getServiceBySlug, resourceNames } from "@/data/catalog";
 import type { Catalog } from "@/hooks/use-catalog";
 import { DEMO_MODE } from "@/data/catalog";
 import { useCatalog } from "@/hooks/use-catalog";
@@ -72,8 +61,70 @@ export const Route = createFileRoute("/$brand/services/$slug")({
       ],
     };
   },
+  pendingMs: 200,
+  pendingMinMs: 0,
+  pendingComponent: SpacePagePending,
   component: ServicePage,
 });
+
+function SpacePagePending() {
+  return (
+    <SiteLayout home>
+      <div className="space-page" role="status" aria-label="Loading space details">
+        <div className="psd-wrap space-page-inner space-page-pending" aria-hidden="true">
+          <div className="space-skeleton space-pending-kicker" />
+          <div className="space-skeleton space-pending-title" />
+          <div className="space-gallery">
+            {Array.from({ length: 5 }, (_, index) => (
+              <div className="space-gallery-item space-skeleton" key={index} />
+            ))}
+          </div>
+          <div className="space-details">
+            <div className="space-pending-copy">
+              <div className="space-skeleton space-pending-heading" />
+              <div className="space-skeleton space-pending-line" />
+              <div className="space-skeleton space-pending-line short" />
+              <div className="space-skeleton space-pending-list" />
+            </div>
+            <div className="space-booking space-pending-booking">
+              <div className="space-skeleton space-pending-heading" />
+              <div className="space-skeleton space-pending-line short" />
+              <div className="space-skeleton space-pending-control" />
+              <div className="space-skeleton space-pending-control" />
+              <div className="space-time-controls">
+                <div className="space-skeleton space-pending-control" />
+                <div className="space-skeleton space-pending-control" />
+              </div>
+              <div className="space-skeleton space-pending-button" />
+            </div>
+          </div>
+        </div>
+        <div className="space-enquiry" aria-hidden="true">
+          <div className="psd-wrap space-pending-form">
+            <div className="space-skeleton space-pending-heading" />
+            <div className="space-skeleton space-pending-line" />
+            <div className="space-pending-form-row">
+              <div className="space-skeleton space-pending-control" />
+              <div className="space-skeleton space-pending-control" />
+              <div className="space-skeleton space-pending-control" />
+            </div>
+            <div className="space-time-controls">
+              <div className="space-skeleton space-pending-control" />
+              <div className="space-skeleton space-pending-control" />
+            </div>
+            <div className="space-pending-form-row">
+              <div className="space-skeleton space-pending-control" />
+              <div className="space-skeleton space-pending-control" />
+            </div>
+            <div className="space-skeleton space-pending-message" />
+            <div className="space-skeleton space-pending-submit" />
+          </div>
+        </div>
+        <span className="sr-only">Loading space details</span>
+      </div>
+    </SiteLayout>
+  );
+}
 
 function nextDays(n: number): string[] {
   const out: string[] = [];
@@ -184,154 +235,312 @@ function ServicePage() {
       ? null
       : Math.round((base * catalog.data.taxBasisPoints) / 10000);
   return (
-    <SiteLayout>
-      <div className="mx-auto max-w-7xl px-4 pb-32 pt-10 lg:pb-10">
-        <p className="text-sm text-muted-foreground">{brand.name}</p>
-        <div className="mt-1 flex flex-wrap items-center gap-3">
-          <h1 className="text-3xl font-semibold sm:text-4xl">{service.name}</h1>
-          {service.status === "draft" ? <DraftBadge reason={service.draftReason} /> : null}
-        </div>
-        <p className="mt-2 max-w-2xl text-muted-foreground">{service.description}</p>
-
-        <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_380px]">
-          <div className="space-y-6">
-            <VenueImage
-              photo={servicePhoto(service)}
-              alt={service.imageAlt}
-              className="h-72 rounded-xl sm:h-96"
-              eager
-            />
-            {servicePhoto(service)?.caption && (
-              <p className="text-xs text-muted-foreground">{servicePhoto(service)?.caption}</p>
-            )}
-            <div className="grid gap-4 md:grid-cols-3">
-              <InclusionList type="included" items={service.content.included} />
-              <InclusionList type="not-included" items={service.content["not-included"]} />
-              <InclusionList type="bring" items={service.content.bring} />
-            </div>
-            <PublishedPriceList service={service} />
-            {brand.slug === "enigma" ? (
-              <p className="text-sm text-muted-foreground">
-                Enigma prices are quoted in JMD, tax exclusive, and subject to change. Daily,
-                weekly, and monthly prices are shown for reference; online booking is hourly only.
-              </p>
-            ) : null}
-            <dl className="surface-panel grid gap-4 p-5 text-sm sm:grid-cols-2">
-              <div>
-                <dt className="text-muted-foreground">Space used</dt>
-                <dd>{resourceNames(service) || "Allocated by staff after inventory review"}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Capacity</dt>
-                <dd>Up to {service.maxAttendees}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Length</dt>
-                <dd>
-                  {formatDuration(service.minDurationMinutes)} to{" "}
-                  {formatDuration(service.maxDurationMinutes)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Facilities</dt>
-                <dd>{service.facilitiesStatus}</dd>
-              </div>
-            </dl>
-            {service.addons.length ? (
-              <section className="surface-panel p-5">
-                <h2 className="font-semibold">Extras</h2>
-                <ul className="mt-3 space-y-3 text-sm">
-                  {service.addons.map((a) => (
-                    <li key={a.id} className="flex flex-wrap items-center justify-between gap-2">
-                      <span>
-                        {a.name} — <span className="text-muted-foreground">{a.description}</span>
-                      </span>
-                      {a.status === "draft" ? (
-                        <DraftBadge reason={a.draftReason} />
-                      ) : (
-                        formatMoney(a.amountMinor)
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ) : null}
+    <SiteLayout home>
+      <div className="space-page">
+        <div className="psd-wrap space-page-inner">
+          <p className="psd-kicker">
+            <span />
+            {brand.name}
+          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-3">
+            <h1>
+              {service.id === "svc-studio-rental" && service.name.toLowerCase() === "studio rental"
+                ? "Studio Rental"
+                : service.name}
+            </h1>
+            {service.status === "draft" ? <DraftBadge reason={service.draftReason} /> : null}
           </div>
-
-          <aside className="surface-panel min-w-0 h-fit space-y-5 rounded-2xl p-5">
-            <BookingStepper current={0} />
-            {catalog.isSuccess && (
-              <AvailabilityWeek
-                days={days}
-                date={date}
-                onDate={(day) => {
-                  setDate(day);
-                  setStart(null);
-                }}
-                serviceId={service.id}
-                duration={duration}
-                extras={extras}
-                enabled={bookable}
-                sundayClosed={catalog.data?.hours?.sundayClosed ?? false}
-              />
-            )}
-            {!bookable ? (
-              <p className="text-sm text-muted-foreground">
-                {service.draftReason ||
-                  "Online reservations for this service await approved venue configuration. Send an enquiry below."}
-              </p>
-            ) : (
-              <>
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="text-sm font-medium">
-                    Duration
-                    <select
-                      aria-label="Duration"
-                      className="mt-1 w-full rounded-md border border-input bg-background px-2 py-2 text-sm"
-                      value={duration}
-                      onChange={(e) => {
-                        setDuration(Number(e.target.value));
-                        setStart(null);
-                      }}
-                    >
-                      {durations.map((d) => (
-                        <option key={d} value={d}>
-                          {formatDuration(d)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="text-sm font-medium">
-                    Attendees
-                    <input
-                      aria-label="Booking attendees"
-                      type="number"
-                      min={1}
-                      max={service.maxAttendees}
-                      value={attendees}
-                      onChange={(e) =>
-                        setAttendees(
-                          Math.min(service.maxAttendees, Math.max(1, Number(e.target.value))),
-                        )
-                      }
-                      className="mt-1 w-full rounded-md border border-input bg-background px-2 py-2 text-sm"
-                    />
-                  </label>
+          <div className="space-gallery">
+            {(service.id === "svc-studio-rental"
+              ? [
+                  service.imageUrl ? servicePhoto(service) : brandPhotos["studio-d"].cover,
+                  { src: "/images/venues/studio-psd-podcast.webp", alt: "Studio D podcast area" },
+                  {
+                    src: "/images/venues/studio-psd-studio.webp",
+                    alt: "Studio D open studio floor",
+                  },
+                  { src: "/images/venues/studio-psd-entrance.webp", alt: "Studio D entrance" },
+                  { src: "/images/venues/studio-psd-lounge.webp", alt: "Studio D lounge" },
+                ]
+              : [
+                  servicePhoto(service),
+                  ...brandPhotos[brand.slug].gallery
+                    .filter((photo) => photo.src !== servicePhoto(service)?.src)
+                    .slice(0, 4),
+                ]
+            )
+              .filter((photo) => photo != null)
+              .map((photo, index) => (
+                <div className="space-gallery-item" key={photo.src}>
+                  <VenueImage
+                    photo={photo}
+                    alt={photo.alt}
+                    className="space-gallery-image"
+                    eager={index === 0}
+                    showLoading
+                  />
+                  <span>
+                    {service.id === "svc-studio-rental"
+                      ? ["Open studio", "Podcast area", "Studio", "Entrance", "Lounge"][index]
+                      : index === 0
+                        ? service.name
+                        : brand.name}
+                  </span>
                 </div>
-                <fieldset>
-                  <legend className="text-sm font-medium">
-                    Start time{" "}
-                    <span className="font-normal text-muted-foreground">
-                      ({VENUE_TIMEZONE_LABEL})
-                    </span>
-                  </legend>
-                  <p className="mt-2 text-sm font-medium" aria-live="polite">
-                    {formatDateShort(date)}
-                    {start ? ` · Selected ${start}` : " · Choose a start time"}
+              ))}
+          </div>
+          {servicePhoto(service)?.caption && (
+            <p className="space-photo-caption">{servicePhoto(service)?.caption}</p>
+          )}
+          <div className="space-details">
+            <div className="space-details-copy space-y-6">
+              <div>
+                <h2>
+                  {service.id === "svc-studio-rental"
+                    ? "A studio you can set up your way"
+                    : service.useCase}
+                </h2>
+                <p>{service.description}</p>
+              </div>
+              {service.brand === "studio-d" && (
+                <nav className="space-options" aria-label="Studio D spaces">
+                  {(
+                    [
+                      ["studio-rental", "Open studio rental", "The studio as an open space"],
+                      [
+                        "podcast-setup",
+                        "Podcast configuration",
+                        "The studio set up for podcasting",
+                      ],
+                      ["studio-lounge", "Studio Lounge", "Space only"],
+                      ["recording-booth", "Recording Booth", "Space only"],
+                    ] as const
+                  ).map(([slug, name, description]) => (
+                    <Link
+                      key={slug}
+                      to="/$brand/services/$slug"
+                      params={{ brand: "studio-d", slug }}
+                      aria-current={service.slug === slug ? "page" : undefined}
+                    >
+                      <strong>{name}</strong>
+                      <span>{description}</span>
+                    </Link>
+                  ))}
+                </nav>
+              )}
+              <div className="space-inclusions">
+                <InclusionList type="included" items={service.content.included} />
+                <InclusionList type="bring" items={service.content.bring} />
+              </div>
+              <details className="space-more-details">
+                <summary>More space details and prices</summary>
+                <div className="space-more-details-content">
+                  <InclusionList type="not-included" items={service.content["not-included"]} />
+                  <PublishedPriceList service={service} />
+                  {brand.slug === "enigma" ? (
+                    <p className="text-sm text-muted-foreground">
+                      Enigma prices are quoted in JMD, tax exclusive, and subject to change. Daily,
+                      weekly, and monthly prices are shown for reference; online booking is hourly
+                      only.
+                    </p>
+                  ) : null}
+                  <dl className="surface-panel grid gap-4 p-5 text-sm sm:grid-cols-2">
+                    <div>
+                      <dt className="text-muted-foreground">Space used</dt>
+                      <dd>
+                        {resourceNames(service) || "Allocated by staff after inventory review"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Capacity</dt>
+                      <dd>Up to {service.maxAttendees}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Length</dt>
+                      <dd>
+                        {formatDuration(service.minDurationMinutes)} to{" "}
+                        {formatDuration(service.maxDurationMinutes)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Facilities</dt>
+                      <dd>{service.facilitiesStatus}</dd>
+                    </div>
+                  </dl>
+                  {service.addons.length ? (
+                    <section className="surface-panel p-5">
+                      <h2 className="font-semibold">Extras</h2>
+                      <ul className="mt-3 space-y-3 text-sm">
+                        {service.addons.map((a) => (
+                          <li
+                            key={a.id}
+                            className="flex flex-wrap items-center justify-between gap-2"
+                          >
+                            <span>
+                              {a.name} —{" "}
+                              <span className="text-muted-foreground">{a.description}</span>
+                            </span>
+                            {a.status === "draft" ? (
+                              <DraftBadge reason={a.draftReason} />
+                            ) : (
+                              formatMoney(a.amountMinor)
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  ) : null}
+                </div>
+              </details>
+            </div>
+
+            <aside className="space-booking min-w-0 h-fit space-y-5">
+              <div>
+                <h2>Request a time</h2>
+                <p>Times in Jamaica time (America/Jamaica)</p>
+              </div>
+              {service.brand === "studio-d" &&
+                (service.slug === "studio-rental" || service.slug === "podcast-setup") && (
+                  <div className="space-setup">
+                    <span>Setup</span>
+                    <nav aria-label="Studio setup">
+                      <Link
+                        to="/$brand/services/$slug"
+                        params={{ brand: "studio-d", slug: "studio-rental" }}
+                        aria-current={service.slug === "studio-rental" ? "page" : undefined}
+                      >
+                        Open Studio
+                      </Link>
+                      <Link
+                        to="/$brand/services/$slug"
+                        params={{ brand: "studio-d", slug: "podcast-setup" }}
+                        aria-current={service.slug === "podcast-setup" ? "page" : undefined}
+                      >
+                        Podcast
+                      </Link>
+                    </nav>
+                  </div>
+                )}
+              <label className="space-booking-label">
+                Date
+                <input
+                  aria-label="Booking date"
+                  type="date"
+                  disabled={!catalog.isSuccess}
+                  min={days[0]}
+                  max={days.at(-1)}
+                  value={date}
+                  onChange={(event) => {
+                    if (days.includes(event.target.value)) {
+                      setDate(event.target.value);
+                      setStart(null);
+                    }
+                  }}
+                />
+              </label>
+              {catalog.isSuccess && bookable && (
+                <details className="space-availability">
+                  <summary>View weekly availability</summary>
+                  <AvailabilityWeek
+                    days={days}
+                    date={date}
+                    onDate={(day) => {
+                      setDate(day);
+                      setStart(null);
+                    }}
+                    serviceId={service.id}
+                    duration={duration}
+                    extras={extras}
+                    enabled={bookable}
+                    sundayClosed={catalog.data?.hours?.sundayClosed ?? false}
+                    hideDate
+                  />
+                </details>
+              )}
+              {!bookable ? (
+                <div className="space-unavailable">
+                  <div className="space-time-controls">
+                    <label className="space-booking-label">
+                      Start
+                      <select disabled aria-label="Start time unavailable">
+                        <option>Unavailable</option>
+                      </select>
+                    </label>
+                    <label className="space-booking-label">
+                      End
+                      <select disabled aria-label="End time unavailable">
+                        <option>Unavailable</option>
+                      </select>
+                    </label>
+                  </div>
+                  <p>
+                    {service.draftReason ||
+                      "Online reservations for this service await approved venue configuration."}
                   </p>
-                  {availability.isLoading ? (
-                    <p role="status">Checking availability…</p>
-                  ) : availability.error ? (
+                  <a className="space-enquiry-link" href="#enquiry">
+                    Ask about this space
+                  </a>
+                </div>
+              ) : (
+                <>
+                  <div className="space-time-controls">
+                    <label className="space-booking-label">
+                      Start
+                      <span
+                        className="space-availability-control"
+                        aria-busy={availability.isLoading}
+                      >
+                        <select
+                          aria-label="Start time"
+                          disabled={availability.isLoading}
+                          value={start ?? ""}
+                          onChange={(event) => {
+                            setStart(event.target.value || null);
+                            if (event.target.value) trackBookingStep("time_selected", service.id);
+                          }}
+                        >
+                          <option value="">Select a time</option>
+                          {slots.map((slot) => (
+                            <option key={slot.start} value={slot.start} disabled={!slot.available}>
+                              {slot.start}
+                              {!slot.available && slot.reason ? ` — ${slot.reason}` : ""}
+                            </option>
+                          ))}
+                        </select>
+                        {availability.isLoading && (
+                          <span
+                            className="space-skeleton space-availability-skeleton"
+                            aria-hidden="true"
+                          />
+                        )}
+                      </span>
+                    </label>
+                    <label className="space-booking-label">
+                      End
+                      <select
+                        aria-label="Duration"
+                        value={duration}
+                        onChange={(event) => {
+                          setDuration(Number(event.target.value));
+                        }}
+                      >
+                        {durations.map((minutes) => {
+                          const [hours, startMinutes] = (start ?? "00:00").split(":").map(Number);
+                          const end = (hours ?? 0) * 60 + (startMinutes ?? 0) + minutes;
+                          const time = `${String(Math.floor((end % 1440) / 60)).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`;
+                          return (
+                            <option key={minutes} value={minutes}>
+                              {start
+                                ? `${time}${end >= 1440 ? " (+1 day)" : ""}`
+                                : formatDuration(minutes)}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </label>
+                  </div>
+                  {availability.isLoading && <p role="status">Checking availability…</p>}
+                  {availability.error && (
                     <p role="alert">
                       Could not check times.{" "}
                       <button
@@ -342,148 +551,143 @@ function ServicePage() {
                         Try again
                       </button>
                     </p>
-                  ) : slots.length === 0 ? (
-                    <p className="mt-2 text-sm text-muted-foreground">No times on this day.</p>
-                  ) : (
-                    <div className="mt-2 grid grid-cols-3 gap-2">
-                      {slots.map((s) => (
-                        <button
-                          key={s.start}
-                          type="button"
-                          disabled={!s.available}
-                          title={s.reason}
-                          aria-pressed={start === s.start}
-                          onClick={() => {
-                            setStart(s.start);
-                            trackBookingStep("time_selected", service.id);
-                          }}
-                          className={`min-h-11 rounded-lg border px-2 py-2 text-sm tabular-nums ${start === s.start ? "border-primary bg-primary text-primary-foreground" : "border-border"} disabled:line-through disabled:opacity-40`}
-                        >
-                          {s.start}
-                        </button>
-                      ))}
-                    </div>
                   )}
-                </fieldset>
-                {availability.isSuccess && !slots.some((slot) => slot.available) && (
-                  <section aria-label="Alternative times" className="space-y-2 text-sm">
-                    <p>No available times for this duration and extras on this date.</p>
-                    {alternatives.isLoading ? (
-                      <p role="status">Finding nearby dates…</p>
-                    ) : alternatives.error ? (
-                      <p role="alert">
-                        Could not check nearby dates. Try another date or send an enquiry below.
-                      </p>
-                    ) : alternatives.data?.length ? (
-                      <>
-                        <p className="font-medium">Try one of these available times:</p>
-                        {alternatives.data.map((option) => (
-                          <button
-                            type="button"
-                            key={option.date + option.start}
-                            className="mr-2 rounded border px-3 py-2"
-                            onClick={() => {
-                              setDate(option.date);
-                              setStart(option.start);
-                              trackBookingStep("time_selected", service.id);
-                            }}
-                          >
-                            {formatDateShort(option.date)} · {option.start}
-                          </button>
-                        ))}
-                      </>
-                    ) : (
-                      <p>
-                        Nothing available in the next seven days within the booking window. Try
-                        another date, adjust the duration, or send an enquiry below.
-                      </p>
-                    )}
-                  </section>
-                )}
-                <PriceBreakdown
-                  lines={[
-                    {
-                      label: `${formatDuration(duration)} × ${formatMoney(rate)}/hr`,
-                      amountMinor: Math.round((rate * duration) / 60),
-                    },
-                    ...service.addons
-                      .filter((a) => extras.includes(a.id))
-                      .map((a) => ({
-                        label: a.name,
-                        amountMinor: Math.round(
-                          a.amountMinor * (a.basis === "per-hour" ? duration / 60 : 1),
-                        ),
-                      })),
-                    { label: "Tax", amountMinor: tax },
-                  ]}
-                  totalMinor={tax === null ? null : base + tax}
-                  note={
-                    tax === null
-                      ? "Tax awaits approved configuration."
-                      : "Current estimate. Availability and rates are rechecked when you submit."
-                  }
-                />
-                <div className="space-y-2">
-                  {service.addons
-                    .filter((a) => a.status === "published")
-                    .map((a) => (
-                      <label key={a.id} className="flex gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={extras.includes(a.id)}
-                          onChange={(e) => {
-                            setExtras(
-                              e.target.checked
-                                ? [...extras, a.id]
-                                : extras.filter((id) => id !== a.id),
-                            );
-                            setStart(null);
-                          }}
-                        />
-                        {a.name} ? {formatMoney(a.amountMinor)} {a.basis}
-                      </label>
-                    ))}
-                </div>
-                <p className="text-sm">
-                  Request this time for staff approval. Pay in person after approval; no online
-                  payment is collected. Selecting a time does not hold it.
-                </p>
-                <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background p-4 shadow-lg lg:static lg:p-0 lg:pt-3 lg:shadow-none">
-                  <p className="mb-2 text-sm font-medium">
-                    {tax === null
-                      ? "Total awaits tax confirmation"
-                      : `Total: ${formatMoney(base + tax)}`}{" "}
-                    · {formatDuration(duration)}
-                  </p>
-                  <Button
-                    className="w-full"
-                    disabled={!start || !slots.some((s) => s.start === start && s.available)}
-                    onClick={() =>
-                      start &&
-                      navigate({
-                        to: "/checkout",
-                        search: {
-                          service: service.id,
-                          date,
-                          start,
-                          duration,
-                          attendees,
-                          extras: extras.join(","),
-                        },
-                      })
+                  {availability.isSuccess && slots.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No times on this day.</p>
+                  )}
+                  <label className="space-booking-label">
+                    Attendees
+                    <input
+                      aria-label="Booking attendees"
+                      type="number"
+                      min={1}
+                      max={service.maxAttendees}
+                      value={attendees}
+                      onChange={(event) =>
+                        setAttendees(
+                          Math.min(service.maxAttendees, Math.max(1, Number(event.target.value))),
+                        )
+                      }
+                    />
+                  </label>
+                  {availability.isSuccess && !slots.some((slot) => slot.available) && (
+                    <section aria-label="Alternative times" className="space-y-2 text-sm">
+                      <p>No available times for this duration and extras on this date.</p>
+                      {alternatives.isLoading ? (
+                        <p role="status">Finding nearby dates…</p>
+                      ) : alternatives.error ? (
+                        <p role="alert">
+                          Could not check nearby dates. Try another date or send an enquiry below.
+                        </p>
+                      ) : alternatives.data?.length ? (
+                        <>
+                          <p className="font-medium">Try one of these available times:</p>
+                          {alternatives.data.map((option) => (
+                            <button
+                              type="button"
+                              key={option.date + option.start}
+                              className="mr-2 rounded border px-3 py-2"
+                              onClick={() => {
+                                setDate(option.date);
+                                setStart(option.start);
+                                trackBookingStep("time_selected", service.id);
+                              }}
+                            >
+                              {formatDateShort(option.date)} · {option.start}
+                            </button>
+                          ))}
+                        </>
+                      ) : (
+                        <p>
+                          Nothing available in the next seven days within the booking window. Try
+                          another date, adjust the duration, or send an enquiry below.
+                        </p>
+                      )}
+                    </section>
+                  )}
+                  <PriceBreakdown
+                    lines={[
+                      {
+                        label: `${formatDuration(duration)} × ${formatMoney(rate)}/hr`,
+                        amountMinor: Math.round((rate * duration) / 60),
+                      },
+                      ...service.addons
+                        .filter((a) => extras.includes(a.id))
+                        .map((a) => ({
+                          label: a.name,
+                          amountMinor: Math.round(
+                            a.amountMinor * (a.basis === "per-hour" ? duration / 60 : 1),
+                          ),
+                        })),
+                      { label: "Tax", amountMinor: tax },
+                    ]}
+                    totalMinor={tax === null ? null : base + tax}
+                    note={
+                      tax === null
+                        ? "Tax awaits approved configuration."
+                        : "Current estimate. Availability and rates are rechecked when you submit."
                     }
-                  >
-                    Continue
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Book at least{" "}
-                  {catalog.data?.rules.advanceNoticeHours ?? bookingRules.advanceNoticeHours} hours
-                  ahead, up to {catalog.data?.rules.horizonDays ?? bookingRules.horizonDays} days
-                  out.
-                </p>
-              </>
-            )}
+                  />
+                  <div className="space-y-2">
+                    {service.addons
+                      .filter((a) => a.status === "published")
+                      .map((a) => (
+                        <label key={a.id} className="flex gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={extras.includes(a.id)}
+                            onChange={(e) => {
+                              setExtras(
+                                e.target.checked
+                                  ? [...extras, a.id]
+                                  : extras.filter((id) => id !== a.id),
+                              );
+                              setStart(null);
+                            }}
+                          />
+                          {a.name} ? {formatMoney(a.amountMinor)} {a.basis}
+                        </label>
+                      ))}
+                  </div>
+                  <p className="text-sm">
+                    Request this time for staff approval. Pay in person after approval; no online
+                    payment is collected. Selecting a time does not hold it.
+                  </p>
+                  <div className="space-booking-action">
+                    <Button
+                      className="w-full"
+                      disabled={!start || !slots.some((s) => s.start === start && s.available)}
+                      onClick={() =>
+                        start &&
+                        navigate({
+                          to: "/checkout",
+                          search: {
+                            service: service.id,
+                            date,
+                            start,
+                            duration,
+                            attendees,
+                            extras: extras.join(","),
+                          },
+                        })
+                      }
+                    >
+                      Continue
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Book at least{" "}
+                    {catalog.data?.rules.advanceNoticeHours ?? bookingRules.advanceNoticeHours}{" "}
+                    hours ahead, up to {catalog.data?.rules.horizonDays ?? bookingRules.horizonDays}{" "}
+                    days out.
+                  </p>
+                </>
+              )}
+            </aside>
+          </div>
+        </div>
+        <section className="space-enquiry">
+          <div className="psd-wrap">
             <EnquiryForm
               key={service.id}
               serviceId={service.id}
@@ -492,8 +696,8 @@ function ServicePage() {
               start={start}
               duration={duration}
             />
-          </aside>
-        </div>
+          </div>
+        </section>
       </div>
     </SiteLayout>
   );

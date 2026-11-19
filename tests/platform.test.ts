@@ -619,6 +619,7 @@ it("uses Jamaica's date near the UTC boundary and escapes calendar text", () => 
     id: "one",
     service_name: "Room, one;two",
     reference: "CC-1",
+    booking_state: "confirmed",
     starts_at: "2026-10-09T15:00:00Z",
     ends_at: "2026-10-09T16:00:00Z",
     arrival_instructions: "Line\nTwo",

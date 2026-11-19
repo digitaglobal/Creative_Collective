@@ -8,6 +8,7 @@ test("mobile week comparison preserves choices and respects booking window", asy
   await page.getByLabel("Booking date").fill(day.toISOString().slice(0, 10));
   await page.getByLabel("Duration", { exact: true }).selectOption("120");
   await page.getByLabel("Booking attendees", { exact: true }).fill("3");
+  await page.getByText("View weekly availability", { exact: true }).click();
   const week = page.getByRole("region", { name: "Weekly availability" });
   await expect(week.getByRole("button", { name: /^Sun.*Closed/ })).toBeVisible();
   const monday = week.getByRole("button", { name: /^Mon/ });
@@ -16,7 +17,7 @@ test("mobile week comparison preserves choices and respects booking window", asy
   await expect(monday).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByLabel("Duration", { exact: true })).toHaveValue("120");
   await expect(page.getByLabel("Booking attendees", { exact: true })).toHaveValue("3");
-  await page.getByRole("button", { name: "11:00", exact: true }).click();
+  await page.getByLabel("Start time", { exact: true }).selectOption("11:00");
   await week.getByRole("button", { name: "Next week" }).click();
   await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeDisabled();
   await expect(page.getByLabel("Duration", { exact: true })).toHaveValue("120");
